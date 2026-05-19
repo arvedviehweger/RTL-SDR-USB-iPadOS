@@ -1,0 +1,21 @@
+//
+//  RTL_SDR.iig
+//  RTL-SDR
+//
+//  Created by Arved Viehweger on 19.05.26.
+//
+
+#ifndef RTL_SDR_h
+#define RTL_SDR_h
+
+#include <Availability.h>
+#include <DriverKit/IOService.iig>
+
+class RTL_SDR: public IOService
+{
+public:
+    virtual kern_return_t
+    Start(IOService * provider) override;
+};
+
+#endif /* RTL_SDR_h */
