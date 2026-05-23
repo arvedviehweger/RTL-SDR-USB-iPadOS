@@ -8,11 +8,41 @@
 
 /* Begin PBXBuildFile section */
 		F8E4131D2FBC3EE400BA74C0 /* DriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E4131C2FBC3EE400BA74C0 /* DriverKit.framework */; };
+		F8E413452FBDDAD200BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F8E413A42FC0F54D00BA74C0 /* USBDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E413A32FC0F54D00BA74C0 /* USBDriverKit.framework */; };
+		F8E413B22FC1E3C000BA74C0 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E413B12FC1E3C000BA74C0 /* IOKit.framework */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		F8E413462FBDDAD200BA74C0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F8E413102FBC3EE400BA74C0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F8E413182FBC3EE400BA74C0;
+			remoteInfo = "RTL-SDR";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F8E413482FBDDAD200BA74C0 /* Embed System Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(SYSTEM_EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				F8E413452FBDDAD200BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext in Embed System Extensions */,
+			);
+			name = "Embed System Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = "com.m0kds.RTL-SDR.dext"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = "com.m0kds.RTL-SDR-Host.driver.dext"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8E4131C2FBC3EE400BA74C0 /* DriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DriverKit.framework; path = Library/Frameworks/DriverKit.framework; sourceTree = DEVELOPER_DIR; };
+		F8E4132F2FBDDA5E00BA74C0 /* RTL-SDR Host.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RTL-SDR Host.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F8E413A32FC0F54D00BA74C0 /* USBDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = USBDriverKit.framework; path = System/DriverKit/System/Library/Frameworks/USBDriverKit.framework; sourceTree = SDKROOT; };
+		F8E413B12FC1E3C000BA74C0 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/IOKit.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -20,6 +50,22 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+			);
+			target = F8E413182FBC3EE400BA74C0 /* RTL-SDR */;
+		};
+		F8E413402FBDDA5F00BA74C0 /* Exceptions for "RTL-SDR Host" folder in "RTL-SDR Host" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F8E4132E2FBDDA5E00BA74C0 /* RTL-SDR Host */;
+		};
+		F8E413AD2FC1E1BA00BA74C0 /* Exceptions for "RTL-SDR Host" folder in "RTL-SDR" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"RTL-SDR-Host-Bridging-Header.h",
+				RTLSDRBridge.h,
+				RTLSDRShared.h,
 			);
 			target = F8E413182FBC3EE400BA74C0 /* RTL-SDR */;
 		};
@@ -34,6 +80,15 @@
 			path = "RTL-SDR";
 			sourceTree = "<group>";
 		};
+		F8E413302FBDDA5E00BA74C0 /* RTL-SDR Host */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F8E413AD2FC1E1BA00BA74C0 /* Exceptions for "RTL-SDR Host" folder in "RTL-SDR" target */,
+				F8E413402FBDDA5F00BA74C0 /* Exceptions for "RTL-SDR Host" folder in "RTL-SDR Host" target */,
+			);
+			path = "RTL-SDR Host";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,7 +96,16 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F8E413A42FC0F54D00BA74C0 /* USBDriverKit.framework in Frameworks */,
 				F8E4131D2FBC3EE400BA74C0 /* DriverKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F8E4132C2FBDDA5E00BA74C0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F8E413B22FC1E3C000BA74C0 /* IOKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -52,6 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				F8E4131E2FBC3EE400BA74C0 /* RTL-SDR */,
+				F8E413302FBDDA5E00BA74C0 /* RTL-SDR Host */,
 				F8E4131B2FBC3EE400BA74C0 /* Frameworks */,
 				F8E4131A2FBC3EE400BA74C0 /* Products */,
 			);
@@ -60,7 +125,8 @@
 		F8E4131A2FBC3EE400BA74C0 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR.dext */,
+				F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext */,
+				F8E4132F2FBDDA5E00BA74C0 /* RTL-SDR Host.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -68,6 +134,8 @@
 		F8E4131B2FBC3EE400BA74C0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				F8E413B12FC1E3C000BA74C0 /* IOKit.framework */,
+				F8E413A32FC0F54D00BA74C0 /* USBDriverKit.framework */,
 				F8E4131C2FBC3EE400BA74C0 /* DriverKit.framework */,
 			);
 			name = Frameworks;
@@ -106,8 +174,32 @@
 			packageProductDependencies = (
 			);
 			productName = "RTL-SDR";
-			productReference = F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR.dext */;
+			productReference = F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext */;
 			productType = "com.apple.product-type.driver-extension";
+		};
+		F8E4132E2FBDDA5E00BA74C0 /* RTL-SDR Host */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F8E413412FBDDA5F00BA74C0 /* Build configuration list for PBXNativeTarget "RTL-SDR Host" */;
+			buildPhases = (
+				F8E4132B2FBDDA5E00BA74C0 /* Sources */,
+				F8E4132C2FBDDA5E00BA74C0 /* Frameworks */,
+				F8E4132D2FBDDA5E00BA74C0 /* Resources */,
+				F8E413482FBDDAD200BA74C0 /* Embed System Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F8E413472FBDDAD200BA74C0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F8E413302FBDDA5E00BA74C0 /* RTL-SDR Host */,
+			);
+			name = "RTL-SDR Host";
+			packageProductDependencies = (
+			);
+			productName = "RTL-SDR Host";
+			productReference = F8E4132F2FBDDA5E00BA74C0 /* RTL-SDR Host.app */;
+			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
@@ -116,9 +208,13 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2650;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					F8E413182FBC3EE400BA74C0 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					F8E4132E2FBDDA5E00BA74C0 = {
 						CreatedOnToolsVersion = 26.5;
 					};
 				};
@@ -138,12 +234,20 @@
 			projectRoot = "";
 			targets = (
 				F8E413182FBC3EE400BA74C0 /* RTL-SDR */,
+				F8E4132E2FBDDA5E00BA74C0 /* RTL-SDR Host */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		F8E413172FBC3EE400BA74C0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F8E4132D2FBDDA5E00BA74C0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -160,19 +264,40 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F8E4132B2FBDDA5E00BA74C0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F8E413472FBDDAD200BA74C0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F8E413182FBC3EE400BA74C0 /* RTL-SDR */;
+			targetProxy = F8E413462FBDDAD200BA74C0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F8E413262FBC3EE400BA74C0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "RTL-SDR/RTL-SDR.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SDKROOT)/System/DriverKit/System/Library/Frameworks",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR/Info.plist";
+				INFOPLIST_KEY_OSBundleUsageDescription = "Used for communicating with RTL-SDR";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.m0kds.RTL-SDR";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.m0kds.RTL-SDR-Host.driver";
 				PRODUCT_NAME = "$(inherited)";
 				RUN_CLANG_STATIC_ANALYZER = YES;
 				SKIP_INSTALL = YES;
@@ -184,13 +309,19 @@
 		F8E413272FBC3EE400BA74C0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "RTL-SDR/RTL-SDR.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SDKROOT)/System/DriverKit/System/Library/Frameworks",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR/Info.plist";
+				INFOPLIST_KEY_OSBundleUsageDescription = "Used for communicating with RTL-SDR";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.m0kds.RTL-SDR";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.m0kds.RTL-SDR-Host.driver";
 				PRODUCT_NAME = "$(inherited)";
 				RUN_CLANG_STATIC_ANALYZER = YES;
 				SKIP_INSTALL = YES;
@@ -316,6 +447,91 @@
 			};
 			name = Release;
 		};
+		F8E413422FBDDA5F00BA74C0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "RTL-SDR Host/RTL-SDR Host.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K89F9CL4ZU;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
+				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "RTL-SDR USB Driver";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.m0kds.RTL-SDR-Host";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				"SWIFT_OBJC_BRIDGING_HEADER[arch=*]" = "RTL-SDR Host/RTL-SDR-Host-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+		F8E413432FBDDA5F00BA74C0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "RTL-SDR Host/RTL-SDR Host.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K89F9CL4ZU;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
+				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "RTL-SDR USB Driver";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.m0kds.RTL-SDR-Host";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -333,6 +549,15 @@
 			buildConfigurations = (
 				F8E413262FBC3EE400BA74C0 /* Debug */,
 				F8E413272FBC3EE400BA74C0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F8E413412FBDDA5F00BA74C0 /* Build configuration list for PBXNativeTarget "RTL-SDR Host" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F8E413422FBDDA5F00BA74C0 /* Debug */,
+				F8E413432FBDDA5F00BA74C0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -4,18 +4,70 @@
 //
 //  Created by Arved Viehweger on 19.05.26.
 //
+//  DriverKit interface driver for the RTL2832U. Matches IOUSBHostInterface
+//  (see Info.plist personality "RTL-SDR Interface") and drives the device
+//  through the ported librtlsdr core via the C bridge in rtlsdr_usb.h.
+//
 
 #ifndef RTL_SDR_h
 #define RTL_SDR_h
 
 #include <Availability.h>
 #include <DriverKit/IOService.iig>
+#include <DriverKit/IOUserClient.iig>
+#include <DriverKit/IOMemoryDescriptor.iig>
+#include <USBDriverKit/IOUSBHostInterface.iig>
+#include <USBDriverKit/IOUSBHostPipe.iig>
 
 class RTL_SDR: public IOService
 {
 public:
+    
+    //  Allocate / release the RTL_SDR_IVars block. DriverKit does NOT do this
+    //  automatically - ivars stays NULL unless init() sets it up.
+    virtual bool
+    init() override;
+
+    virtual void
+    free() override;
+
     virtual kern_return_t
     Start(IOService * provider) override;
+
+    virtual kern_return_t
+    Stop(IOService * provider) override;
+
+    //  Creates the RTL_SDR_UserClient that the iPadOS host app talks to.
+    virtual kern_return_t
+    NewUserClient(uint32_t type, IOUserClient ** userClient) override;
+
+    //  Asynchronous completion callback for the bulk-IN (IQ) endpoint 0x81.
+    //  One OSAction is created per streaming buffer; see rtlsdr_usb_stream_*.
+    virtual void
+    ReadComplete(OSAction * action,
+                 IOReturn  status,
+                 uint32_t  actualByteCount,
+                 uint64_t  completionTimestamp) TYPE(IOUSBHostPipe::CompleteAsyncIO);
+
+    //  ---- entry points called locally by RTL_SDR_UserClient (no IPC) -------
+    //  LOCALONLY: ordinary in-process C++ calls, no cross-process marshalling.
+
+    //  Executes a scalar control command (see kRTLSDRMethod* in RTLSDRShared.h)
+    //  serialised on the device dispatch queue.
+    virtual kern_return_t
+    HandleScalarCommand(uint32_t selector,
+                        uint64_t arg,
+                        uint64_t * result) LOCALONLY;
+
+    //  Hands out the shared IQ ring buffer (retained) for CopyClientMemoryForType.
+    virtual kern_return_t
+    CopyIQRing(IOMemoryDescriptor ** ring) LOCALONLY;
+
+    //  Fills an RTLSDRDeviceInfo struct (passed as void* to keep iig simple).
+    virtual kern_return_t
+    FillDeviceInfo(void * info) LOCALONLY;
+    
+    
 };
 
 #endif /* RTL_SDR_h */

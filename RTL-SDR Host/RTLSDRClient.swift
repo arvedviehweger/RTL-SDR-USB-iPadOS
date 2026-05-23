@@ -1,0 +1,195 @@
+//
+//  RTLSDRClient.swift
+//  RTL-SDR Host
+//
+//  Minimal client for the RTL_SDR DriverKit extension. Wraps the C/IOKit
+//  bridge (RTLSDRBridge) and runs a one-shot connection self-test that
+//  exercises the whole chain: user-client connection, scalar control methods,
+//  the GetDeviceInfo struct method, the mapped IQ ring buffer and streaming.
+//
+//  This is the seed for the later rtl_tcp server - the same calls
+//  (set frequency / sample rate / gain, start streaming, drain the ring
+//  buffer) are what an rtl_tcp implementation needs.
+//
+
+import Foundation
+
+final class RTLSDRClient {
+
+    private var connection: UInt32 = 0
+    private var ringBase: UnsafeMutableRawPointer?
+    private var ringSize: UInt64 = 0
+
+    /// RTLSDRRingBuffer header = 4 x UInt64 (writeCount, readCount,
+    /// dropCount, dataSize) before the sample data starts.
+    private let ringHeaderSize = 32
+
+    var isOpen: Bool { connection != 0 }
+
+    // MARK: - Connection
+
+    @discardableResult
+    func open() -> Bool {
+        connection = rtlsdrhost_open()
+        return connection != 0
+    }
+
+    func close() {
+        ringBase = nil
+        ringSize = 0
+        if connection != 0 {
+            rtlsdrhost_close(connection)
+            connection = 0
+        }
+    }
+
+    // MARK: - Control commands
+
+    /// Calls a scalar external method. `selector` is a kRTLSDRMethod* constant;
+    /// the generic integer type keeps this working whether the C enum imports
+    /// as Int32 or UInt32. Returns the IOKit kern_return_t (0 == success).
+    @discardableResult
+    func call<T: BinaryInteger>(_ selector: T, _ arg: UInt64 = 0) -> Int32 {
+        guard connection != 0 else { return -1 }
+        var out: UInt64 = 0
+        return rtlsdrhost_call(connection, UInt32(selector), arg, &out)
+    }
+
+    func deviceInfo() -> RTLSDRDeviceInfo? {
+        guard connection != 0 else { return nil }
+        var info = RTLSDRDeviceInfo()
+        var size = MemoryLayout<RTLSDRDeviceInfo>.size
+        let kr = rtlsdrhost_get_struct(connection,
+                                       UInt32(kRTLSDRMethodGetDeviceInfo),
+                                       &info, &size)
+        return kr == 0 ? info : nil
+    }
+
+    // MARK: - Shared IQ ring buffer
+
+    @discardableResult
+    func mapRing() -> Bool {
+        guard connection != 0 else { return false }
+        var size: UInt64 = 0
+        guard let p = rtlsdrhost_map_memory(connection,
+                                            UInt32(kRTLSDRMemoryTypeIQRing),
+                                            &size) else {
+            return false
+        }
+        ringBase = p
+        ringSize = size
+        return true
+    }
+
+    private func ringField(_ offset: Int) -> UInt64 {
+        guard let b = ringBase else { return 0 }
+        return b.load(fromByteOffset: offset, as: UInt64.self)
+    }
+
+    var ringWriteCount: UInt64 { ringField(0) }
+    var ringReadCount:  UInt64 { ringField(8) }
+    var ringDropCount:  UInt64 { ringField(16) }
+    var ringDataSize:   UInt64 { ringField(24) }
+
+    /// Hex dump of `count` bytes from the sample-data region.
+    func peekData(_ count: Int, at dataOffset: Int = 0) -> String {
+        guard let b = ringBase else { return "-" }
+        let start = b.advanced(by: ringHeaderSize)
+        var parts: [String] = []
+        for i in 0..<count {
+            parts.append(String(format: "%02X",
+                                start.load(fromByteOffset: dataOffset + i,
+                                           as: UInt8.self)))
+        }
+        return parts.joined(separator: " ")
+    }
+
+    // MARK: - One-shot self-test
+
+    func runConnectionTest(log: @escaping (String) -> Void) {
+        log("Suche RTL_SDR Service …")
+        guard open() else {
+            log("✗ Keine Verbindung zum RTL_SDR User Client.")
+            log("  → RTL-SDR angesteckt? Dext aktiv?")
+            log("    (Konsole sollte \"RTL_SDR: started\" zeigen)")
+            return
+        }
+        log("✓ User-Client-Verbindung offen.")
+
+        if let info = deviceInfo() {
+            log("✓ GetDeviceInfo:")
+            log("    valid=\(info.valid)   tuner=\(tunerName(info.tunerType))")
+            log("    sampleRate=\(info.sampleRate) Hz   streaming=\(info.streaming)")
+        } else {
+            log("⚠ GetDeviceInfo fehlgeschlagen (Struct-Methode).")
+        }
+
+        report("SetSampleRate 2.048 MS/s",
+               call(kRTLSDRMethodSetSampleRate, 2_048_000), log)
+        report("SetCenterFreq 100 MHz",
+               call(kRTLSDRMethodSetCenterFreq, 100_000_000), log)
+        report("SetTunerGainMode auto",
+               call(kRTLSDRMethodSetTunerGainMode, 0), log)
+        report("ResetBuffer",
+               call(kRTLSDRMethodResetBuffer), log)
+
+        guard mapRing() else {
+            log("✗ IQ-Ringpuffer konnte nicht gemappt werden.")
+            close()
+            return
+        }
+        log("✓ IQ-Ringpuffer gemappt: \(ringSize) Bytes (Nutzdaten \(ringDataSize)).")
+
+        let writeBefore = ringWriteCount
+        report("StartStream", call(kRTLSDRMethodStartStream), log)
+
+        log("… streame 1 Sekunde …")
+        Thread.sleep(forTimeInterval: 1.0)
+
+        let writeAfter = ringWriteCount
+        let drops = ringDropCount
+        report("StopStream", call(kRTLSDRMethodStopStream), log)
+
+        let produced = writeAfter &- writeBefore
+        if produced > 0 {
+            let kib = Double(produced) / 1024.0
+            log("")
+            log("✓✓ IQ-Streaming aktiv:")
+            log("    \(produced) Bytes in 1 s  (~\(Int(kib)) KiB/s)")
+            log("    dropCount=\(drops)")
+            log("    Datenprobe: \(peekData(16))")
+            log("")
+            log("VERBINDUNGSTEST ERFOLGREICH.")
+        } else {
+            log("")
+            log("⚠ Keine IQ-Daten empfangen (writeCount unverändert).")
+            log("  → Streaming-Pfad (AsyncIO/ReadComplete) prüfen,")
+            log("    Konsole nach [rtlsdr]-Meldungen durchsehen.")
+        }
+
+        close()
+        log("Verbindung geschlossen.")
+    }
+
+    // MARK: - Helpers
+
+    private func report(_ name: String, _ kr: Int32, _ log: (String) -> Void) {
+        if kr == 0 {
+            log("  ✓ \(name)")
+        } else {
+            log("  ✗ \(name)  (kr=0x\(String(format: "%08X", UInt32(bitPattern: kr))))")
+        }
+    }
+
+    private func tunerName(_ t: UInt32) -> String {
+        switch t {
+        case 1:  return "Elonics E4000"
+        case 2:  return "Fitipower FC0012"
+        case 3:  return "Fitipower FC0013"
+        case 4:  return "FCI FC2580"
+        case 5:  return "Rafael Micro R820T/2"
+        case 6:  return "Rafael Micro R828D"
+        default: return "unbekannt (\(t))"
+        }
+    }
+}
