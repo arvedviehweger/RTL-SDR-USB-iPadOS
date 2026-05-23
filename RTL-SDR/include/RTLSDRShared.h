@@ -36,6 +36,7 @@ enum {
     kRTLSDRMethodSetGainByIndex    = 13, /* scalarInput[0] = index into the gain list */
     kRTLSDRMethodGetTunerType      = 14, /* scalarOutput[0] = enum rtlsdr_tuner       */
     kRTLSDRMethodGetDeviceInfo     = 15, /* structOutput   = RTLSDRDeviceInfo         */
+    kRTLSDRMethodSetOffsetTuning   = 16, /* scalarInput[0] = 1 on / 0 off             */
     kRTLSDRMethodCount
 };
 

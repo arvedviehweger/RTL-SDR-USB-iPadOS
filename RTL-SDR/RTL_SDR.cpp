@@ -820,6 +820,9 @@ RTL_SDR::HandleScalarCommand(uint32_t selector, uint64_t arg, uint64_t *result)
         case kRTLSDRMethodGetTunerType:
             out = (uint64_t)rtlsdr_get_tuner_type(d);
             break;
+        case kRTLSDRMethodSetOffsetTuning:
+            r = rtlsdr_set_offset_tuning(d, (int)arg);
+            break;
         default:
             r = -1;
             break;

@@ -11,6 +11,7 @@
 		F8E413452FBDDAD200BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F8E413A42FC0F54D00BA74C0 /* USBDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E413A32FC0F54D00BA74C0 /* USBDriverKit.framework */; };
 		F8E413B22FC1E3C000BA74C0 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E413B12FC1E3C000BA74C0 /* IOKit.framework */; };
+		F8E413B62FC1EA5300BA74C0 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E413B52FC1EA5300BA74C0 /* Network.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -43,6 +44,7 @@
 		F8E4132F2FBDDA5E00BA74C0 /* RTL-SDR Host.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RTL-SDR Host.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8E413A32FC0F54D00BA74C0 /* USBDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = USBDriverKit.framework; path = System/DriverKit/System/Library/Frameworks/USBDriverKit.framework; sourceTree = SDKROOT; };
 		F8E413B12FC1E3C000BA74C0 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/IOKit.framework; sourceTree = DEVELOPER_DIR; };
+		F8E413B52FC1EA5300BA74C0 /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/Network.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -106,6 +108,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F8E413B22FC1E3C000BA74C0 /* IOKit.framework in Frameworks */,
+				F8E413B62FC1EA5300BA74C0 /* Network.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -134,6 +137,7 @@
 		F8E4131B2FBC3EE400BA74C0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				F8E413B52FC1EA5300BA74C0 /* Network.framework */,
 				F8E413B12FC1E3C000BA74C0 /* IOKit.framework */,
 				F8E413A32FC0F54D00BA74C0 /* USBDriverKit.framework */,
 				F8E4131C2FBC3EE400BA74C0 /* DriverKit.framework */,

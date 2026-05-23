@@ -104,6 +104,51 @@ final class RTLSDRClient {
         return parts.joined(separator: " ")
     }
 
+    // MARK: - Streaming consumer (used by the rtl_tcp server)
+
+    private var consumeCursor: UInt64 = 0
+
+    /// Starts consuming at the current write position (discards any backlog).
+    func beginConsuming() {
+        consumeCursor = ringWriteCount
+    }
+
+    /// Returns every IQ byte produced since the last call, or nil if none.
+    /// Advances the ring's readCount so the producer sees the consumption.
+    /// If the consumer was lapped, it skips ahead to the newest data.
+    func readIQ() -> Data? {
+        guard let base = ringBase else { return nil }
+        let dataSize = ringDataSize
+        guard dataSize > 0 else { return nil }
+
+        let w = ringWriteCount
+        var r = consumeCursor
+        var avail = w &- r
+        if avail == 0 { return nil }
+        if avail > dataSize {                 // lapped - jump to the newest window
+            r = w &- dataSize
+            avail = dataSize
+        }
+
+        let count = Int(avail)
+        let dataStart = base.advanced(by: ringHeaderSize)
+        var out = Data(count: count)
+        out.withUnsafeMutableBytes { raw in
+            guard let dst = raw.baseAddress else { return }
+            let off = Int(r % dataSize)
+            let first = min(count, Int(dataSize) - off)
+            memcpy(dst, dataStart.advanced(by: off), first)
+            if count > first {
+                memcpy(dst.advanced(by: first), dataStart, count - first)
+            }
+        }
+
+        r = r &+ avail
+        consumeCursor = r
+        base.storeBytes(of: r, toByteOffset: 8, as: UInt64.self)   // publish readCount
+        return out
+    }
+
     // MARK: - One-shot self-test
 
     func runConnectionTest(log: @escaping (String) -> Void) {
