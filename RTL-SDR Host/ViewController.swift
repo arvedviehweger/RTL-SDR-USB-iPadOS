@@ -19,6 +19,7 @@ class ViewController: UIViewController {
 
     private let client = RTLSDRClient()
     private lazy var server = RTLTCPServer(client: client)
+    private let keeper = BackgroundAudioKeeper()
 
     private let logView      = UITextView()
     private let testButton   = UIButton(type: .system)
@@ -102,6 +103,17 @@ class ViewController: UIViewController {
             self.serverButton.backgroundColor = running ? .systemRed : .systemGreen
             self.testButton.isEnabled = !running
             self.testButton.alpha = running ? 0.5 : 1.0
+
+            // Keep the app - and therefore the rtl_tcp server - alive:
+            //  • audio background mode survives switching to another app,
+            //  • disabling the idle timer keeps the screen from locking.
+            if running {
+                self.keeper.start()
+                UIApplication.shared.isIdleTimerDisabled = true
+            } else {
+                self.keeper.stop()
+                UIApplication.shared.isIdleTimerDisabled = false
+            }
         }
     }
 
