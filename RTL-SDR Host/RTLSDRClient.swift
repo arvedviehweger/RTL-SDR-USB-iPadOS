@@ -152,21 +152,20 @@ final class RTLSDRClient {
     // MARK: - One-shot self-test
 
     func runConnectionTest(log: @escaping (String) -> Void) {
-        log("Suche RTL_SDR Service …")
+        log("Searching for RTL_SDR service …")
         guard open() else {
-            log("✗ Keine Verbindung zum RTL_SDR User Client.")
-            log("  → RTL-SDR angesteckt? Dext aktiv?")
-            log("    (Konsole sollte \"RTL_SDR: started\" zeigen)")
+            log("✗ Could not connect to the RTL_SDR user client.")
+            log("  → Is the RTL-SDR plugged in?")
             return
         }
-        log("✓ User-Client-Verbindung offen.")
+        log("✓ User client connection open.")
 
         if let info = deviceInfo() {
             log("✓ GetDeviceInfo:")
             log("    valid=\(info.valid)   tuner=\(tunerName(info.tunerType))")
             log("    sampleRate=\(info.sampleRate) Hz   streaming=\(info.streaming)")
         } else {
-            log("⚠ GetDeviceInfo fehlgeschlagen (Struct-Methode).")
+            log("⚠ GetDeviceInfo failed (struct method).")
         }
 
         report("SetSampleRate 2.048 MS/s",
@@ -179,16 +178,16 @@ final class RTLSDRClient {
                call(kRTLSDRMethodResetBuffer), log)
 
         guard mapRing() else {
-            log("✗ IQ-Ringpuffer konnte nicht gemappt werden.")
+            log("✗ Could not map the IQ ring buffer.")
             close()
             return
         }
-        log("✓ IQ-Ringpuffer gemappt: \(ringSize) Bytes (Nutzdaten \(ringDataSize)).")
+        log("✓ IQ ring buffer mapped: \(ringSize) bytes (payload \(ringDataSize)).")
 
         let writeBefore = ringWriteCount
         report("StartStream", call(kRTLSDRMethodStartStream), log)
 
-        log("… streame 1 Sekunde …")
+        log("… streaming for 1 second …")
         Thread.sleep(forTimeInterval: 1.0)
 
         let writeAfter = ringWriteCount
@@ -199,21 +198,21 @@ final class RTLSDRClient {
         if produced > 0 {
             let kib = Double(produced) / 1024.0
             log("")
-            log("✓✓ IQ-Streaming aktiv:")
-            log("    \(produced) Bytes in 1 s  (~\(Int(kib)) KiB/s)")
-            log("    dropCount=\(drops)")
-            log("    Datenprobe: \(peekData(16))")
+            log("✓✓ IQ streaming active:")
+            log("    \(produced) bytes in 1 s  (~\(Int(kib)) KiB/s)")
+            //log("    dropCount=\(drops)")
+            log("    data sample: \(peekData(16))")
             log("")
-            log("VERBINDUNGSTEST ERFOLGREICH.")
+            log("CONNECTION TEST SUCCESSFUL.")
         } else {
             log("")
-            log("⚠ Keine IQ-Daten empfangen (writeCount unverändert).")
-            log("  → Streaming-Pfad (AsyncIO/ReadComplete) prüfen,")
-            log("    Konsole nach [rtlsdr]-Meldungen durchsehen.")
+            log("⚠ No IQ data received (writeCount unchanged).")
+            log("  → Check the streaming path (AsyncIO/ReadComplete),")
+            log("    look for [rtlsdr] messages in the console.")
         }
 
         close()
-        log("Verbindung geschlossen.")
+        log("Connection closed.")
     }
 
     // MARK: - Helpers
@@ -234,7 +233,7 @@ final class RTLSDRClient {
         case 4:  return "FCI FC2580"
         case 5:  return "Rafael Micro R820T/2"
         case 6:  return "Rafael Micro R828D"
-        default: return "unbekannt (\(t))"
+        default: return "unknown (\(t))"
         }
     }
 }

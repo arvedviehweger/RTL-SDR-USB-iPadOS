@@ -88,11 +88,11 @@ final class RTLTCPServer {
         self.port = port
 
         guard client.open() else {
-            emit("✗ RTL-SDR User Client nicht erreichbar — Dext aktiv? Gerät angesteckt?")
+            emit("✗ RTL-SDR user client unreachable — is the dext active? Is the device plugged in?")
             return
         }
         guard client.mapRing() else {
-            emit("✗ IQ-Ringpuffer konnte nicht gemappt werden.")
+            emit("✗ Could not map the IQ ring buffer.")
             client.close()
             return
         }
@@ -102,7 +102,7 @@ final class RTLTCPServer {
 
         guard let nwPort = NWEndpoint.Port(rawValue: port),
               let l = try? NWListener(using: params, on: nwPort) else {
-            emit("✗ Listener auf Port \(port) konnte nicht erstellt werden.")
+            emit("✗ Could not create listener on port \(port).")
             client.close()
             return
         }
@@ -114,17 +114,17 @@ final class RTLTCPServer {
             guard let self = self else { return }
             switch state {
             case .ready:
-                self.emit("✓ rtl_tcp-Server läuft auf Port \(self.port).")
+                self.emit("✓ rtl_tcp server running on port \(self.port).")
                 let ips = RTLTCPServer.localIPAddresses()
                 if ips.isEmpty {
-                    self.emit("  Client verbinden mit:  <iPad-WLAN-IP>:\(self.port)")
+                    self.emit("  Connect a client to:  <iPad-WiFi-IP>:\(self.port)")
                 } else {
-                    self.emit("  Im SDR-Client als rtl_tcp-Quelle eintragen:")
+                    self.emit("  Enter as the rtl_tcp source in your SDR client:")
                     for ip in ips { self.emit("    • \(ip):\(self.port)") }
                 }
                 self.notifyStatus(true)
             case .failed(let error):
-                self.emit("✗ Listener-Fehler: \(error)")
+                self.emit("✗ Listener error: \(error)")
                 self.doStop()
             default:
                 break
@@ -144,7 +144,7 @@ final class RTLTCPServer {
             streaming = false
         }
         client.close()
-        emit("rtl_tcp-Server gestoppt.")
+        emit("rtl_tcp server stopped.")
         notifyStatus(false)
     }
 
@@ -152,7 +152,7 @@ final class RTLTCPServer {
 
     private func handleNewConnection(_ conn: NWConnection) {
         guard connection == nil else {
-            emit("Weiterer Client abgewiesen — es wird nur einer bedient.")
+            emit("Additional client rejected — only one is served.")
             conn.cancel()
             return
         }
@@ -165,10 +165,10 @@ final class RTLTCPServer {
             guard self.connection === conn else { return }
             switch state {
             case .ready:
-                self.emit("Client verbunden: \(conn.endpoint)")
+                self.emit("Client connected: \(conn.endpoint)")
                 self.onClientReady()
             case .failed(let error):
-                self.emit("Client-Verbindungsfehler: \(error)")
+                self.emit("Client connection error: \(error)")
                 self.onClientGone()
             case .cancelled:
                 self.onClientGone()
@@ -187,7 +187,7 @@ final class RTLTCPServer {
         _ = kr
         streaming = (client.call(kRTLSDRMethodStartStream) == 0)
         if !streaming {
-            emit("⚠ StartStream fehlgeschlagen.")
+            emit("⚠ StartStream failed.")
         }
 
         pumpIQ()
@@ -201,7 +201,7 @@ final class RTLTCPServer {
             client.call(kRTLSDRMethodStopStream)
             streaming = false
         }
-        emit("Client getrennt — warte auf neue Verbindung.")
+        emit("Client disconnected — waiting for a new connection.")
     }
 
     // MARK: - Dongle-info header
@@ -219,7 +219,7 @@ final class RTLTCPServer {
         header.append(bigEndian(gainCount))
 
         connection?.send(content: header, completion: .contentProcessed { _ in })
-        emit("Dongle-Header gesendet (tuner_type=\(tunerType), gain_count=\(gainCount)).")
+        emit("Dongle header sent (tuner_type=\(tunerType), gain_count=\(gainCount)).")
     }
 
     // MARK: - IQ pump (ring buffer -> socket)
@@ -272,41 +272,41 @@ final class RTLTCPServer {
         switch cmd {
         case Cmd.setFrequency:
             client.call(kRTLSDRMethodSetCenterFreq, p64)
-            emit("cmd: Frequenz \(param) Hz")
+            emit("cmd: frequency \(param) Hz")
         case Cmd.setSampleRate:
             client.call(kRTLSDRMethodSetSampleRate, p64)
-            emit("cmd: Sample-Rate \(param) Hz")
+            emit("cmd: sample rate \(param) Hz")
         case Cmd.setGainMode:
             client.call(kRTLSDRMethodSetTunerGainMode, p64)
-            emit("cmd: Gain-Mode \(param == 0 ? "auto" : "manuell")")
+            emit("cmd: gain mode \(param == 0 ? "auto" : "manual")")
         case Cmd.setGain:
             client.call(kRTLSDRMethodSetTunerGain, p64)
-            emit("cmd: Tuner-Gain \(Int32(bitPattern: param)) (0,1 dB)")
+            emit("cmd: tuner gain \(Int32(bitPattern: param)) (tenths of a dB)")
         case Cmd.setFreqCorrection:
             client.call(kRTLSDRMethodSetFreqCorrection, p64)
-            emit("cmd: Frequenzkorrektur \(Int32(bitPattern: param)) ppm")
+            emit("cmd: frequency correction \(Int32(bitPattern: param)) ppm")
         case Cmd.setTestMode:
             client.call(kRTLSDRMethodSetTestmode, p64)
-            emit("cmd: Test-Mode \(param)")
+            emit("cmd: test mode \(param)")
         case Cmd.setAgcMode:
             client.call(kRTLSDRMethodSetAgcMode, p64)
-            emit("cmd: RTL2832-AGC \(param)")
+            emit("cmd: RTL2832 AGC \(param)")
         case Cmd.setDirectSampling:
             client.call(kRTLSDRMethodSetDirectSampling, p64)
-            emit("cmd: Direct-Sampling \(param)")
+            emit("cmd: direct sampling \(param)")
         case Cmd.setGainByIndex:
             client.call(kRTLSDRMethodSetGainByIndex, p64)
-            emit("cmd: Gain per Index \(param)")
+            emit("cmd: gain by index \(param)")
         case Cmd.setBiasTee:
             client.call(kRTLSDRMethodSetBiasTee, p64)
-            emit("cmd: Bias-T \(param == 0 ? "aus" : "an")")
+            emit("cmd: bias-T \(param == 0 ? "off" : "on")")
         case Cmd.setOffsetTuning:
             client.call(kRTLSDRMethodSetOffsetTuning, p64)
-            emit("cmd: Offset-Tuning \(param == 0 ? "aus" : "an")")
+            emit("cmd: offset tuning \(param == 0 ? "off" : "on")")
         case Cmd.setIfStage, Cmd.setRtlCrystal, Cmd.setTunerCrystal:
-            emit("cmd: 0x\(hex(cmd)) (noch nicht abgebildet) — ignoriert")
+            emit("cmd: 0x\(hex(cmd)) (not yet mapped) — ignored")
         default:
-            emit("cmd: unbekannt 0x\(hex(cmd)) — ignoriert")
+            emit("cmd: unknown 0x\(hex(cmd)) — ignored")
         }
     }
 

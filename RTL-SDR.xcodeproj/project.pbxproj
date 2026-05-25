@@ -454,7 +454,7 @@
 		F8E413422FBDDA5F00BA74C0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Icon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "RTL-SDR Host/RTL-SDR Host.entitlements";
 				CODE_SIGN_STYLE = Automatic;
@@ -462,6 +462,8 @@
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR-Host";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "RTL-SDR USB Driver";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -497,7 +499,7 @@
 		F8E413432FBDDA5F00BA74C0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Icon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "RTL-SDR Host/RTL-SDR Host.entitlements";
 				CODE_SIGN_STYLE = Automatic;
@@ -505,6 +507,8 @@
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR-Host";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "RTL-SDR USB Driver";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;

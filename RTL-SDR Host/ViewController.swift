@@ -5,10 +5,10 @@
 //  Created by Arved Viehweger on 20.05.26.
 //
 //  Two actions:
-//   • "Verbindung testen" - one-shot self-test of the dext user client.
-//   • "rtl_tcp-Server"    - starts an rtl_tcp-compatible TCP server so that
-//                           existing SDR clients can use the iPad's RTL-SDR
-//                           over the network.
+//   • "Test connection" - one-shot self-test of the dext user client.
+//   • "rtl_tcp server"  - starts an rtl_tcp-compatible TCP server so that
+//                         existing SDR clients can use the iPad's RTL-SDR
+//                         over the network.
 //
 
 import UIKit
@@ -38,11 +38,11 @@ class ViewController: UIViewController {
         print("RTL-SDR Host started")
         print("Bundled driver extension identifier: \(driverExtensionIdentifier)")
 
-        appendLog("RTL-SDR Host bereit.")
+        appendLog("RTL-SDR Host ready.")
         appendLog("Driver Extension: \(driverExtensionIdentifier)")
         appendLog("")
-        appendLog("• Verbindung testen  – prüft die Dext-Anbindung einmalig.")
-        appendLog("• rtl_tcp-Server     – macht den RTL-SDR im Netzwerk verfügbar.")
+        appendLog("• Test connection  – check the USB connection to the RTL-SDR")
+        appendLog("• rtl_tcp server   – exposes the RTL-SDR on the network.")
     }
 
     // MARK: - UI
@@ -56,11 +56,11 @@ class ViewController: UIViewController {
         logView.textContainerInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         view.addSubview(logView)
 
-        styleButton(testButton,   title: "Verbindung testen", color: .systemBlue)
+        styleButton(testButton,   title: "Test connection", color: .systemBlue)
         testButton.addTarget(self, action: #selector(runTest), for: .touchUpInside)
         view.addSubview(testButton)
 
-        styleButton(serverButton, title: "rtl_tcp-Server starten", color: .systemGreen)
+        styleButton(serverButton, title: "Start rtl_tcp server", color: .systemGreen)
         serverButton.addTarget(self, action: #selector(toggleServer), for: .touchUpInside)
         view.addSubview(serverButton)
 
@@ -98,8 +98,8 @@ class ViewController: UIViewController {
         server.statusChanged = { [weak self] running in
             guard let self = self else { return }
             self.serverRunning = running
-            self.serverButton.setTitle(running ? "rtl_tcp-Server stoppen"
-                                               : "rtl_tcp-Server starten", for: .normal)
+            self.serverButton.setTitle(running ? "Stop rtl_tcp server"
+                                               : "Start rtl_tcp server", for: .normal)
             self.serverButton.backgroundColor = running ? .systemRed : .systemGreen
             self.testButton.isEnabled = !running
             self.testButton.alpha = running ? 0.5 : 1.0
@@ -125,7 +125,7 @@ class ViewController: UIViewController {
         testButton.alpha = 0.5
         serverButton.alpha = 0.5
         appendLog("")
-        appendLog("──────── Test gestartet ────────")
+        appendLog("──────── Test started ────────")
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -146,7 +146,7 @@ class ViewController: UIViewController {
             server.stop()
         } else {
             appendLog("")
-            appendLog("──────── rtl_tcp-Server ────────")
+            appendLog("──────── rtl_tcp server ────────")
             server.start(port: 1234)
         }
     }
