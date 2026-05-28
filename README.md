@@ -63,7 +63,7 @@ the recursive I2C lock of the original `librtlsdr` is no longer needed.
 
 ## Requirements
 
-- iPad with USB-C, iPadOS 16 or later (DriverKit on iPad).
+- iPad with USB-C & M(x)-Series SoC, iPadOS 16 or later (DriverKit on iPad).
 - An RTL2832U-based RTL-SDR receiver (Realtek vendor ID `0x0BDA` / `3034`).
 - Xcode with the DriverKit SDK installed.
 - An Apple Developer account with the DriverKit capability enabled for the bundle identifier(s).
