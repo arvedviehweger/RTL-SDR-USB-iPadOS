@@ -5,6 +5,7 @@ A USBDriverKit port of [`librtlsdr`](https://github.com/librtlsdr/librtlsdr)
 for iPadOS, packaged together with a host app that re-publishes the IQ stream
 as an **rtl_tcp-compatible TCP server**. The port of `librtlsdr` to USBDriverKit 
 finally allows iPadOS (iOS) to access the RTL-SDR via USB without a jailbreak.
+This project is not affiliated with Realtek or RTL-SDR Blog.
 
 The driver itself is a regular DriverKit extension that matches RTL2832U-based
 USB SDR receivers and runs the ported `librtlsdr` core. The host app opens an
