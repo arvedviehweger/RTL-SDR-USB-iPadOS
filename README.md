@@ -3,7 +3,8 @@
 
 A USBDriverKit port of [`librtlsdr`](https://github.com/librtlsdr/librtlsdr)
 for iPadOS, packaged together with a host app that re-publishes the IQ stream
-as an **rtl_tcp-compatible TCP server**.
+as an **rtl_tcp-compatible TCP server**. The port of `librtlsdr` to USBDriverKit 
+finally allows iPadOS (iOS) to access the RTL-SDR via USB without a jailbreak.
 
 The driver itself is a regular DriverKit extension that matches RTL2832U-based
 USB SDR receivers and runs the ported `librtlsdr` core. The host app opens an
@@ -223,12 +224,11 @@ This project contains a port of `librtlsdr`, which is licensed under the
 **GNU General Public License v2 or later**. The driver extension is a
 derivative work of `librtlsdr` and is therefore distributed under the same
 terms. The Swift host app is original code but talks to the GPL-licensed
-extension, so this project as a whole is best treated as GPL-licensed.
+extension, therefore this project as a whole is GPL-licensed.
 
 Note that GPL terms are widely considered incompatible with Apple's App
-Store distribution terms — the App Store-licensed binary download imposes
-restrictions that GPL does not allow. Keep this in mind if you ever consider
-public App Store distribution. TestFlight and personal / sideloaded
+Store distribution terms. The App Store-licensed binary download imposes
+restrictions that GPL does not allow. Personal & sideloaded
 distribution are not affected.
 
 ## Acknowledgements
