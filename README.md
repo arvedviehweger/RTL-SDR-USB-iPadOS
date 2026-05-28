@@ -1,6 +1,5 @@
-# RTL-SDR for iPadOS
+# RTL-SDR (USB) for iPadOS
 
-*by Arved Viehweger*
 
 A USBDriverKit port of [`librtlsdr`](https://github.com/librtlsdr/librtlsdr)
 for iPadOS, packaged together with a host app that re-publishes the IQ stream
