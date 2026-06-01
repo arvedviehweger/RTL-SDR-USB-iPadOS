@@ -91,6 +91,15 @@ final class RTLSDRClient {
     var ringDropCount:  UInt64 { ringField(16) }
     var ringDataSize:   UInt64 { ringField(24) }
 
+    /// Clears the shared-ring counters while streaming is stopped.
+    func resetRingCounters() {
+        guard let base = ringBase else { return }
+        consumeCursor = 0
+        base.storeBytes(of: UInt64(0), toByteOffset: 0, as: UInt64.self)
+        base.storeBytes(of: UInt64(0), toByteOffset: 8, as: UInt64.self)
+        base.storeBytes(of: UInt64(0), toByteOffset: 16, as: UInt64.self)
+    }
+
     /// Hex dump of `count` bytes from the sample-data region.
     func peekData(_ count: Int, at dataOffset: Int = 0) -> String {
         guard let b = ringBase else { return "-" }
@@ -110,7 +119,15 @@ final class RTLSDRClient {
 
     /// Starts consuming at the current write position (discards any backlog).
     func beginConsuming() {
-        consumeCursor = ringWriteCount
+        drainPendingIQ()
+    }
+
+    /// Marks all currently buffered IQ as consumed without copying it.
+    func drainPendingIQ() {
+        guard let base = ringBase else { return }
+        let w = ringWriteCount
+        consumeCursor = w
+        base.storeBytes(of: w, toByteOffset: 8, as: UInt64.self)
     }
 
     /// Returns every IQ byte produced since the last call, or nil if none.
@@ -183,12 +200,18 @@ final class RTLSDRClient {
             return
         }
         log("✓ IQ ring buffer mapped: \(ringSize) bytes (payload \(ringDataSize)).")
+        resetRingCounters()
 
         let writeBefore = ringWriteCount
         report("StartStream", call(kRTLSDRMethodStartStream), log)
 
         log("… streaming for 1 second …")
-        Thread.sleep(forTimeInterval: 1.0)
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline {
+            drainPendingIQ()
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        drainPendingIQ()
 
         let writeAfter = ringWriteCount
         let drops = ringDropCount
@@ -200,7 +223,7 @@ final class RTLSDRClient {
             log("")
             log("✓✓ IQ streaming active:")
             log("    \(produced) bytes in 1 s  (~\(Int(kib)) KiB/s)")
-            //log("    dropCount=\(drops)")
+            log("    dropCount=\(drops)")
             log("    data sample: \(peekData(16))")
             log("")
             log("CONNECTION TEST SUCCESSFUL.")

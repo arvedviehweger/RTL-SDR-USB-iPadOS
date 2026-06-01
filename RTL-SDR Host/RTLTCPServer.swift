@@ -182,9 +182,10 @@ final class RTLTCPServer {
     private func onClientReady() {
         sendDongleHeader()
 
-        client.beginConsuming()
         let kr = client.call(kRTLSDRMethodResetBuffer)
         _ = kr
+        client.resetRingCounters()
+        client.beginConsuming()
         streaming = (client.call(kRTLSDRMethodStartStream) == 0)
         if !streaming {
             emit("⚠ StartStream failed.")
