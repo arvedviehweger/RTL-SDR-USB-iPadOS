@@ -1,7 +1,7 @@
 # RTL-SDR (USB) for iPadOS
 
 
-A USBDriverKit port of [`librtlsdr`](https://github.com/librtlsdr/librtlsdr)
+An unofficial USBDriverKit port of [`librtlsdr`](https://github.com/librtlsdr/librtlsdr)
 for iPadOS, packaged together with a host app that re-publishes the IQ stream
 as an **rtl_tcp-compatible TCP server**. The port of `librtlsdr` to USBDriverKit 
 finally allows iPadOS (iOS) to access the RTL-SDR via USB without a jailbreak.
@@ -17,6 +17,8 @@ RTL-SDR exactly as if it were attached to a PC running `rtl_tcp`.
 The `librtlsdr` core has been adapted to USBDriverKit while keeping the
 upstream control flow, register I/O and tuner code as close to the original
 as possible — only the platform layer (libusb, pthread, stdio) was replaced.
+
+Verified to work with R820T2 & E4000 tuners.
 
 ## Features
 
