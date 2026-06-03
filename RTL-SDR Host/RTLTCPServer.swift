@@ -169,9 +169,9 @@ final class RTLTCPServer {
                 self.onClientReady()
             case .failed(let error):
                 self.emit("Client connection error: \(error)")
-                self.onClientGone()
+                self.onClientGone(conn)
             case .cancelled:
-                self.onClientGone()
+                self.onClientGone(conn)
             default:
                 break
             }
@@ -195,8 +195,8 @@ final class RTLTCPServer {
         receiveCommand()
     }
 
-    private func onClientGone() {
-        guard connection != nil else { return }
+    private func onClientGone(_ conn: NWConnection) {
+        guard connection === conn else { return }
         connection = nil
         if streaming {
             client.call(kRTLSDRMethodStopStream)
@@ -231,8 +231,9 @@ final class RTLTCPServer {
         if let data = client.readIQ(), !data.isEmpty {
             conn.send(content: data, completion: .contentProcessed { [weak self] error in
                 guard let self = self else { return }
+                guard self.connection === conn else { return }
                 if error != nil {
-                    self.onClientGone()
+                    self.onClientGone(conn)
                 } else {
                     self.pumpIQ()                       // back-pressured: next chunk
                 }
@@ -252,11 +253,12 @@ final class RTLTCPServer {
         // rtl_tcp commands are exactly 5 bytes.
         conn.receive(minimumIncompleteLength: 5, maximumLength: 5) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
+            guard self.connection === conn else { return }
             if let data = data, data.count == 5 {
                 self.handleCommand([UInt8](data))
             }
             if isComplete || error != nil {
-                self.onClientGone()
+                self.onClientGone(conn)
                 return
             }
             self.receiveCommand()
