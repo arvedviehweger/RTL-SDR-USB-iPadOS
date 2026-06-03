@@ -3543,6 +3543,11 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 	 * rtlsdr_stream_block_cb() is invoked for each completed transfer. */
 	int r = rtlsdr_usb_stream_start(dev->usb, dev->xfer_buf_num,
 			dev->xfer_buf_len, rtlsdr_stream_block_cb, dev);
+	if (r == -2) {
+		rtlsdr_usb_stream_stop(dev->usb);
+		r = rtlsdr_usb_stream_start(dev->usb, dev->xfer_buf_num,
+				dev->xfer_buf_len, rtlsdr_stream_block_cb, dev);
+	}
 	if (r != 0) {
 		dev->async_status = RTLSDR_INACTIVE;
 		dev->async_cancel = 0;
@@ -4121,4 +4126,3 @@ const char * rtlsdr_get_ver_id() {
 uint32_t rtlsdr_get_version() {
 	return ((uint32_t)APP_VER_MAJOR << 16 ) | ((uint32_t)APP_VER_MINOR );
 }
-
