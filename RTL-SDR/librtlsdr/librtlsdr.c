@@ -3574,8 +3574,10 @@ int rtlsdr_cancel_async(rtlsdr_dev_t *dev)
 		dev->async_status = RTLSDR_INACTIVE;
 		return 0;
 	}
-	if (RTLSDR_INACTIVE == dev->async_status)
+	if (RTLSDR_INACTIVE == dev->async_status) {
+		rtlsdr_usb_stream_stop(dev->usb);
 		return 0;
+	}
 	return -2;
 }
 
