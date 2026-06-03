@@ -3541,8 +3541,15 @@ int rtlsdr_read_async(rtlsdr_dev_t *dev, rtlsdr_read_async_cb_t cb, void *ctx,
 	/* DriverKit port: streaming runs asynchronously on USBDriverKit pipes.
 	 * This returns immediately instead of running a libusb event loop;
 	 * rtlsdr_stream_block_cb() is invoked for each completed transfer. */
-	return rtlsdr_usb_stream_start(dev->usb, dev->xfer_buf_num,
+	int r = rtlsdr_usb_stream_start(dev->usb, dev->xfer_buf_num,
 			dev->xfer_buf_len, rtlsdr_stream_block_cb, dev);
+	if (r != 0) {
+		dev->async_status = RTLSDR_INACTIVE;
+		dev->async_cancel = 0;
+		dev->cb = NULL;
+		dev->cb_ctx = NULL;
+	}
+	return r;
 }
 
 int rtlsdr_cancel_async(rtlsdr_dev_t *dev)
@@ -3558,6 +3565,8 @@ int rtlsdr_cancel_async(rtlsdr_dev_t *dev)
 		dev->async_status = RTLSDR_INACTIVE;
 		return 0;
 	}
+	if (RTLSDR_INACTIVE == dev->async_status)
+		return 0;
 	return -2;
 }
 
@@ -4112,5 +4121,4 @@ const char * rtlsdr_get_ver_id() {
 uint32_t rtlsdr_get_version() {
 	return ((uint32_t)APP_VER_MAJOR << 16 ) | ((uint32_t)APP_VER_MINOR );
 }
-
 

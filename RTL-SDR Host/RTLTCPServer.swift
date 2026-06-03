@@ -186,9 +186,10 @@ final class RTLTCPServer {
         _ = kr
         client.resetRingCounters()
         client.beginConsuming()
-        streaming = (client.call(kRTLSDRMethodStartStream) == 0)
+        let startKR = client.call(kRTLSDRMethodStartStream)
+        streaming = (startKR == 0)
         if !streaming {
-            emit("⚠ StartStream failed.")
+            emit("⚠ StartStream failed (kr=0x\(String(format: "%08X", UInt32(bitPattern: startKR)))).")
         }
 
         pumpIQ()
