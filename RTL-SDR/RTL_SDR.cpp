@@ -70,6 +70,8 @@ struct RTLSDRTransport {
     RTLSDRRingBuffer         *iqRingAddr;   /* mapped address of iqRing        */
 
     rtlsdr_dev_t             *dev;          /* librtlsdr device                */
+    char                      manufact[256]; /* USB strings, read in Start()  */
+    char                      product[256];
 
     /* asynchronous streaming */
     bool                      streaming;
@@ -416,17 +418,56 @@ extern "C" int rtlsdr_usb_reset(rtlsdr_usb_t usb)
     return (ret == kIOReturnSuccess) ? 0 : -1;
 }
 
+/* Reads string descriptor `index` into `out` (>= 256 bytes) as ASCII, the
+ * way libusb_get_string_descriptor_ascii() does: non-ASCII becomes '?'.
+ * Leaves `out` empty if the device has no such string. */
+static void RTLSDR_CopyStringASCII(IOUSBHostDevice *dev, uint8_t index, char *out)
+{
+    out[0] = '\0';
+    if (!index)
+        return;
+    const IOUSBStringDescriptor *sd = dev->CopyStringDescriptor(index);
+    if (!sd)
+        return;
+
+    /* bString is UTF-16LE, starting right after bLength / bDescriptorType */
+    const uint8_t *raw = (const uint8_t *)sd;
+    uint32_t n = 0;
+    for (uint32_t i = 2; i + 1 < sd->bLength && n < 255; i += 2)
+        out[n++] = ((raw[i] & 0x80) || raw[i + 1]) ? '?' : (char)raw[i];
+    out[n] = '\0';
+    IOUSBHostFreeDescriptor(sd);
+}
+
 extern "C" int rtlsdr_usb_get_strings(rtlsdr_usb_t usb,
                                       char *manufact, char *product, char *serial)
 {
-    /* DriverKit port: string descriptors are only used by librtlsdr to
-     * auto-detect the RTL-SDR Blog V4 crystal. Returning empty strings simply
-     * makes that detection fall through, which is harmless for other dongles.
-     * Implement with IOUSBHostDevice::CopyStringDescriptor() if you need it. */
-    (void)usb;
+    /* librtlsdr uses manufacturer + product to detect the RTL-SDR Blog V4
+     * (28.8 MHz R828D crystal, HF upconversion, input switching). */
     if (manufact) manufact[0] = '\0';
     if (product)  product[0]  = '\0';
     if (serial)   serial[0]   = '\0';
+
+    RTLSDRTransport *t = (RTLSDRTransport *)usb;
+    if (!t || !t->interface)
+        return -1;
+
+    IOUSBHostDevice *dev = nullptr;
+    kern_return_t ret = t->interface->CopyDevice(&dev);
+    if (ret != kIOReturnSuccess || !dev)
+        return -1;
+
+    const IOUSBDeviceDescriptor *dd = dev->CopyDeviceDescriptor();
+    if (!dd) {
+        OSSafeReleaseNULL(dev);
+        return -1;
+    }
+    if (manufact) RTLSDR_CopyStringASCII(dev, dd->iManufacturer, manufact);
+    if (product)  RTLSDR_CopyStringASCII(dev, dd->iProduct, product);
+    if (serial)   RTLSDR_CopyStringASCII(dev, dd->iSerialNumber, serial);
+
+    IOUSBHostFreeDescriptor(dd);
+    OSSafeReleaseNULL(dev);
     return 0;
 }
 
@@ -728,9 +769,11 @@ IMPL(RTL_SDR, Start)
         }
     }
 
+    rtlsdr_usb_get_strings(t, t->manufact, t->product, nullptr);
+
     RegisterService();
-    os_log(OS_LOG_DEFAULT, "RTL_SDR: started, tuner type = %d",
-           rtlsdr_get_tuner_type(t->dev));
+    os_log(OS_LOG_DEFAULT, "RTL_SDR: started, tuner type = %d, device = %{public}s / %{public}s",
+           rtlsdr_get_tuner_type(t->dev), t->manufact, t->product);
     return kIOReturnSuccess;
 
 fail:
