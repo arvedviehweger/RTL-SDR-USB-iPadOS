@@ -18,11 +18,17 @@
 //
 //  Threading model
 //  ---------------
-//  Everything that touches the device runs on RTL_SDR's *default* dispatch
-//  queue (grabbed once via CopyDispatchQueue). Start/Stop/ReadComplete already
-//  run there; HandleScalarCommand hops onto it with DispatchSync; softagc gain
-//  changes are posted with DispatchAsync. A single serial queue means the
-//  recursive I2C lock of the original librtlsdr code is no longer needed.
+//  Control of the device runs on RTL_SDR's *default* dispatch queue (grabbed
+//  once via CopyDispatchQueue). Start/Stop already run there;
+//  HandleScalarCommand hops onto it with DispatchSync; softagc gain changes
+//  are posted with DispatchAsync. A single serial queue means the recursive
+//  I2C lock of the original librtlsdr code is no longer needed.
+//
+//  IQ streaming runs on a second serial queue ("Stream"): ReadComplete is
+//  delivered there and the stream start/stop bridge functions hop onto it, so
+//  it alone owns the streaming state. Control commands (tuner re-init, I2C)
+//  therefore no longer hold up the bulk-IN completions - the same split as
+//  upstream, where libusb callbacks run on their own thread.
 //
 //  NOTE: a few USBDriverKit method signatures / constant names below are
 //  marked "VERIFY" - please check them against the USBDriverKit SDK headers
@@ -69,6 +75,8 @@ struct RTLSDRTransport {
     IOUSBHostInterface       *interface;    /* matched USB interface (provider)*/
     IOUSBHostPipe            *pipeIn;       /* bulk-IN pipe, endpoint 0x81     */
     IODispatchQueue          *deviceQueue;  /* RTL_SDR default queue (retained)*/
+    IODispatchQueue          *streamQueue;  /* runs ReadComplete, owns stream  */
+    bool                      streamQueueLogged; /* queue check logged once    */
 
     IOBufferMemoryDescriptor *ctrlBuffer;   /* reusable control buffer         */
     uint8_t                  *ctrlBytes;    /* mapped address of ctrlBuffer    */
@@ -501,14 +509,24 @@ static uint32_t RTLSDR_StreamInFlight(const RTLSDRTransport *t)
     return n;
 }
 
-extern "C" int rtlsdr_usb_stream_start(rtlsdr_usb_t usb,
-                                       uint32_t buf_num,
-                                       uint32_t buf_len,
-                                       rtlsdr_usb_stream_cb_t cb,
-                                       void *ctx)
+/* Runs `block` on the stream queue, which owns all streaming state. Before
+ * the queue exists (early Start failure) it runs on the caller's queue. */
+static void RTLSDR_OnStreamQueue(RTLSDRTransport *t, IODispatchBlock block)
 {
-    RTLSDRTransport *t = (RTLSDRTransport *)usb;
-    if (!t || !t->pipeIn || !t->interface || !t->owner) {
+    if (t->streamQueue)
+        t->streamQueue->DispatchSync(block);
+    else
+        block();
+}
+
+/* rtlsdr_usb_stream_start, on the stream queue */
+static int RTLSDR_DoStreamStart(RTLSDRTransport *t,
+                                uint32_t buf_num,
+                                uint32_t buf_len,
+                                rtlsdr_usb_stream_cb_t cb,
+                                void *ctx)
+{
+    if (!t->pipeIn || !t->interface || !t->owner) {
         os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start failed: transport not ready");
         return -1;
     }
@@ -592,17 +610,14 @@ extern "C" int rtlsdr_usb_stream_start(rtlsdr_usb_t usb,
     return 0;
 }
 
-extern "C" int rtlsdr_usb_stream_stop(rtlsdr_usb_t usb)
+/* rtlsdr_usb_stream_stop, on the stream queue */
+static int RTLSDR_DoStreamStop(RTLSDRTransport *t)
 {
-    RTLSDRTransport *t = (RTLSDRTransport *)usb;
-    if (!t)
-        return -1;
-
     bool wasStreaming = t->streaming;
     t->streaming = false;
 
     /* VERIFY: IOUSBHostPipe::Abort(options, withError, forAction).
-     * We run on the device queue, which is also where ReadComplete is
+     * We run on the stream queue, which is also where ReadComplete is
      * delivered, so the aborted completions only arrive after we return.
      * The buffers and actions must stay alive until then - releasing them
      * here crashed the dext in ReadComplete (OSAction::GetReference). They
@@ -615,6 +630,36 @@ extern "C" int rtlsdr_usb_stream_stop(rtlsdr_usb_t usb)
     os_log(OS_LOG_DEFAULT, "[rtlsdr] streaming stopped (%u transfers pending)",
            RTLSDR_StreamInFlight(t));
     return 0;
+}
+
+extern "C" int rtlsdr_usb_stream_start(rtlsdr_usb_t usb,
+                                       uint32_t buf_num,
+                                       uint32_t buf_len,
+                                       rtlsdr_usb_stream_cb_t cb,
+                                       void *ctx)
+{
+    RTLSDRTransport *t = (RTLSDRTransport *)usb;
+    if (!t) {
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start failed: transport not ready");
+        return -1;
+    }
+    __block int r = -1;
+    RTLSDR_OnStreamQueue(t, ^{
+        r = RTLSDR_DoStreamStart(t, buf_num, buf_len, cb, ctx);
+    });
+    return r;
+}
+
+extern "C" int rtlsdr_usb_stream_stop(rtlsdr_usb_t usb)
+{
+    RTLSDRTransport *t = (RTLSDRTransport *)usb;
+    if (!t)
+        return -1;
+    __block int r = -1;
+    RTLSDR_OnStreamQueue(t, ^{
+        r = RTLSDR_DoStreamStop(t);
+    });
+    return r;
 }
 
 extern "C" void rtlsdr_softagc_schedule(rtlsdr_usb_t usb)
@@ -637,8 +682,8 @@ static void RTLSDR_TeardownTransport(RTLSDRTransport *t)
     if (!t)
         return;
 
-    if (t->streaming)
-        rtlsdr_usb_stream_stop(t);
+    /* checks the streaming flag itself, on the stream queue */
+    rtlsdr_usb_stream_stop(t);
 
     /* rtlsdr_close() issues USB control transfers (deinit_baseband); the
      * caller (Start failure path / Stop) already runs on the device queue. */
@@ -647,8 +692,9 @@ static void RTLSDR_TeardownTransport(RTLSDRTransport *t)
         t->dev = nullptr;
     }
 
-    /* Completions still in flight find ivars->t == NULL in ReadComplete and
-     * return before touching their action. */
+    /* Stop() has detached the transport (ivars->t == NULL) on the stream
+     * queue, so completions still in flight return in ReadComplete before
+     * touching their action. (On the Start failure path no stream ran.) */
     RTLSDR_FreeStreamPool(t);
     OSSafeReleaseNULL(t->ctrlBuffer);
     OSSafeReleaseNULL(t->iqRing);
@@ -658,6 +704,7 @@ static void RTLSDR_TeardownTransport(RTLSDRTransport *t)
         t->interface->Close(t->owner, 0);
         t->interface = nullptr;
     }
+    OSSafeReleaseNULL(t->streamQueue);
     OSSafeReleaseNULL(t->deviceQueue);
 }
 
@@ -727,12 +774,25 @@ IMPL(RTL_SDR, Start)
         goto fail;
     }
 
-    /* Use this driver's own default dispatch queue for every device access:
-     * Start / Stop / ReadComplete already run here, control commands hop on
-     * with DispatchSync, softagc gain changes with DispatchAsync. */
+    /* Use this driver's own default dispatch queue for device control:
+     * Start / Stop already run here, control commands hop on with
+     * DispatchSync, softagc gain changes with DispatchAsync. */
     ret = CopyDispatchQueue(kIOServiceDefaultQueueName, &t->deviceQueue);
     if (ret != kIOReturnSuccess || !t->deviceQueue) {
         os_log(OS_LOG_DEFAULT, "RTL_SDR: CopyDispatchQueue failed: 0x%x", ret);
+        goto fail;
+    }
+
+    /* Bulk-IN completions get their own queue (ReadComplete is declared
+     * QUEUENAME(Stream)); see "Threading model" at the top. */
+    ret = IODispatchQueue::Create("Stream", 0, 0, &t->streamQueue);
+    if (ret != kIOReturnSuccess || !t->streamQueue) {
+        os_log(OS_LOG_DEFAULT, "RTL_SDR: stream queue create failed: 0x%x", ret);
+        goto fail;
+    }
+    ret = SetDispatchQueue("Stream", t->streamQueue);
+    if (ret != kIOReturnSuccess) {
+        os_log(OS_LOG_DEFAULT, "RTL_SDR: SetDispatchQueue(Stream) failed: 0x%x", ret);
         goto fail;
     }
 
@@ -797,9 +857,14 @@ IMPL(RTL_SDR, Stop)
     os_log(OS_LOG_DEFAULT, "RTL_SDR::Stop");
 
     if (ivars && ivars->t) {
-        RTLSDR_TeardownTransport(ivars->t);
-        IOFree(ivars->t, sizeof(RTLSDRTransport));
-        ivars->t = nullptr;
+        RTLSDRTransport *t = ivars->t;
+        /* Detach on the stream queue first: a ReadComplete running there
+         * finishes before the transport goes away, later ones see NULL. */
+        RTLSDR_OnStreamQueue(t, ^{
+            ivars->t = nullptr;
+        });
+        RTLSDR_TeardownTransport(t);
+        IOFree(t, sizeof(RTLSDRTransport));
     }
     return Stop(provider, SUPERDISPATCH);
 }
@@ -829,7 +894,7 @@ IMPL(RTL_SDR, NewUserClient)
 /* ===========================================================================
  * MARK: - Bulk-IN completion
  *
- * Runs on the device queue, once per completed AsyncIO transfer. Forwards the
+ * Runs on the stream queue, once per completed AsyncIO transfer. Forwards the
  * IQ samples to librtlsdr (softagc + dev->cb -> RTLSDR_iqSink) and resubmits
  * the same buffer.
  * ======================================================================== */
@@ -839,6 +904,13 @@ IMPL(RTL_SDR, ReadComplete)
     RTLSDRTransport *t = (ivars ? ivars->t : nullptr);
     if (!t)
         return;
+
+    /* The stream state is only safe if QUEUENAME(Stream) took effect. */
+    if (!t->streamQueueLogged) {
+        t->streamQueueLogged = true;
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] ReadComplete on stream queue: %{public}s",
+               t->streamQueue->OnQueue() ? "yes" : "NO");
+    }
 
     uint32_t idx = (uint32_t)(*(uint64_t *)action->GetReference());
     if (idx >= t->streamBufNum)

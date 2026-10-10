@@ -43,11 +43,14 @@ public:
 
     //  Asynchronous completion callback for the bulk-IN (IQ) endpoint 0x81.
     //  One OSAction is created per streaming buffer; see rtlsdr_usb_stream_*.
+    //  Runs on the "Stream" queue, so IQ keeps flowing while control
+    //  commands occupy the default queue.
     virtual void
     ReadComplete(OSAction * action,
                  IOReturn  status,
                  uint32_t  actualByteCount,
-                 uint64_t  completionTimestamp) TYPE(IOUSBHostPipe::CompleteAsyncIO);
+                 uint64_t  completionTimestamp) TYPE(IOUSBHostPipe::CompleteAsyncIO)
+                                                QUEUENAME(Stream);
 
     //  ---- entry points called locally by RTL_SDR_UserClient (no IPC) -------
     //  LOCALONLY: ordinary in-process C++ calls, no cross-process marshalling.
