@@ -97,7 +97,19 @@ final class RTLTCPServer {
             return
         }
 
-        let params = NWParameters.tcp
+        // Detect clients that vanish without closing their socket (suspended
+        // app, Wi-Fi change, sleeping host): keepalive covers an idle link,
+        // persistTimeout a zero receive window, connectionDropTime
+        // unacknowledged retransmissions.
+        let tcp = NWProtocolTCP.Options()
+        tcp.enableKeepalive    = true
+        tcp.keepaliveIdle      = 10
+        tcp.keepaliveInterval  = 5
+        tcp.keepaliveCount     = 3
+        tcp.persistTimeout     = 10
+        tcp.connectionDropTime = 10
+
+        let params = NWParameters(tls: nil, tcp: tcp)
         params.allowLocalEndpointReuse = true
 
         guard let nwPort = NWEndpoint.Port(rawValue: port),
@@ -151,10 +163,12 @@ final class RTLTCPServer {
     // MARK: - Connection handling
 
     private func handleNewConnection(_ conn: NWConnection) {
-        guard connection == nil else {
-            emit("Additional client rejected — only one is served.")
-            conn.cancel()
-            return
+        // Only one client is served and the newest one wins. Rejecting the
+        // new client instead would lock out every reconnect for as long as
+        // a previous client lingers without having closed its socket.
+        if let old = connection {
+            emit("New client — dropping the previous one.")
+            dropClient(old)
         }
         connection = conn
 
@@ -166,7 +180,7 @@ final class RTLTCPServer {
             switch state {
             case .ready:
                 self.emit("Client connected: \(conn.endpoint)")
-                self.onClientReady()
+                self.onClientReady(conn)
             case .failed(let error):
                 self.emit("Client connection error: \(error)")
                 self.onClientGone(conn)
@@ -179,7 +193,7 @@ final class RTLTCPServer {
         conn.start(queue: queue)
     }
 
-    private func onClientReady() {
+    private func onClientReady(_ conn: NWConnection) {
         sendDongleHeader()
 
         client.call(kRTLSDRMethodStopStream)
@@ -195,18 +209,24 @@ final class RTLTCPServer {
             emit("⚠ StartStream failed (kr=0x\(String(format: "%08X", UInt32(bitPattern: startKR))), rtl=\(start.result)).")
         }
 
-        pumpIQ()
+        pumpIQ(conn)
         receiveCommand()
     }
 
     private func onClientGone(_ conn: NWConnection) {
         guard connection === conn else { return }
+        dropClient(conn)
+        emit("Client disconnected — waiting for a new connection.")
+    }
+
+    /// Closes the current client's socket and stops the IQ stream.
+    private func dropClient(_ conn: NWConnection) {
         connection = nil
+        conn.cancel()
         if streaming {
             client.call(kRTLSDRMethodStopStream)
             streaming = false
         }
-        emit("Client disconnected — waiting for a new connection.")
     }
 
     // MARK: - Dongle-info header
@@ -229,8 +249,10 @@ final class RTLTCPServer {
 
     // MARK: - IQ pump (ring buffer -> socket)
 
-    private func pumpIQ() {
-        guard let conn = connection, streaming else { return }
+    /// Bound to one connection, so a pending retry of a previous client
+    /// cannot start a second pump on its successor.
+    private func pumpIQ(_ conn: NWConnection) {
+        guard connection === conn, streaming else { return }
 
         if let data = client.readIQ(), !data.isEmpty {
             conn.send(content: data, completion: .contentProcessed { [weak self] error in
@@ -239,13 +261,13 @@ final class RTLTCPServer {
                 if error != nil {
                     self.onClientGone(conn)
                 } else {
-                    self.pumpIQ()                       // back-pressured: next chunk
+                    self.pumpIQ(conn)                   // back-pressured: next chunk
                 }
             })
         } else {
             // nothing produced yet - retry shortly
             queue.asyncAfter(deadline: .now() + 0.004) { [weak self] in
-                self?.pumpIQ()
+                self?.pumpIQ(conn)
             }
         }
     }
