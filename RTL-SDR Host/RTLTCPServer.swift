@@ -234,8 +234,8 @@ final class RTLTCPServer {
             client.call(kRTLSDRMethodStopStream)
             emit("⚠ StartStream failed (kr=0x\(String(format: "%08X", UInt32(bitPattern: startKR))), rtl=\(start.result)).")
         }
-        // Logs an "IQ:" statistics line every few seconds; comment out to disable.
-        if streaming { startStats() }
+        // Logs an "IQ:" statistics line every few seconds; uncomment to enable.
+        // if streaming { startStats() }
 
         pumpIQ(conn)
         receiveCommand()
