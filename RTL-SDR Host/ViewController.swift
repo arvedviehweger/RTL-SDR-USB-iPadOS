@@ -27,6 +27,14 @@ class ViewController: UIViewController {
 
     private var serverRunning = false
 
+    // The rtl_tcp server logs every client command, and clients with their
+    // own AGC send several per second. Keep the log bounded and refresh the
+    // view at most every 100 ms so it does not compete with the SDR client
+    // for CPU.
+    private let maxLogLines = 500
+    private var logLines: [String] = []
+    private var logFlushPending = false
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -154,8 +162,20 @@ class ViewController: UIViewController {
     // MARK: - Log
 
     private func appendLog(_ line: String) {
-        let current = logView.text ?? ""
-        logView.text = current.isEmpty ? line : current + "\n" + line
+        logLines.append(line)
+        if logLines.count > maxLogLines {
+            logLines.removeFirst(logLines.count - maxLogLines)
+        }
+        guard !logFlushPending else { return }
+        logFlushPending = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.flushLog()
+        }
+    }
+
+    private func flushLog() {
+        logFlushPending = false
+        logView.text = logLines.joined(separator: "\n")
         let end = NSRange(location: (logView.text as NSString).length, length: 0)
         logView.scrollRangeToVisible(end)
     }
