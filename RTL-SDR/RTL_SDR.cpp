@@ -682,6 +682,11 @@ static void RTLSDR_TeardownTransport(RTLSDRTransport *t)
     if (!t)
         return;
 
+    /* End librtlsdr's async state as well, not just the USB stream:
+     * rtlsdr_close() below waits until async_status is INACTIVE and would
+     * hang forever if the dongle is unplugged while streaming. */
+    if (t->dev)
+        rtlsdr_cancel_async(t->dev);
     /* checks the streaming flag itself, on the stream queue */
     rtlsdr_usb_stream_stop(t);
 
