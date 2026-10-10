@@ -46,11 +46,15 @@ final class RTLTCPServer {
     }
 
     private let client: RTLSDRClient
-    private let queue  = DispatchQueue(label: "com.m0kds.rtltcp.server")
+    // .userInitiated: the IQ stream feeds a live SDR client, often running
+    // in the foreground while this app is in the background.
+    private let queue  = DispatchQueue(label: "com.m0kds.rtltcp.server",
+                                       qos: .userInitiated)
     /// Control commands block on USB I/O in the dext (I2C to the tuner).
     /// Running them here keeps the IQ pump on `queue` going meanwhile; the
     /// serial queue preserves the order in which the client sent them.
-    private let commandQueue = DispatchQueue(label: "com.m0kds.rtltcp.commands")
+    private let commandQueue = DispatchQueue(label: "com.m0kds.rtltcp.commands",
+                                             qos: .userInitiated)
 
     private var listener:   NWListener?
     private var connection: NWConnection?
@@ -116,6 +120,7 @@ final class RTLTCPServer {
         tcp.keepaliveCount     = 3
         tcp.persistTimeout     = 10
         tcp.connectionDropTime = 10
+        tcp.noDelay            = true   // send each IQ chunk right away
 
         let params = NWParameters(tls: nil, tcp: tcp)
         params.allowLocalEndpointReuse = true
