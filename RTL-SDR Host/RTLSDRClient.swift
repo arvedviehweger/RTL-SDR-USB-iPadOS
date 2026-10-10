@@ -50,9 +50,14 @@ final class RTLSDRClient {
     /// as Int32 or UInt32. Returns the IOKit kern_return_t (0 == success).
     @discardableResult
     func call<T: BinaryInteger>(_ selector: T, _ arg: UInt64 = 0) -> Int32 {
-        guard connection != 0 else { return -1 }
+        return callWithResult(selector, arg).kr
+    }
+
+    func callWithResult<T: BinaryInteger>(_ selector: T, _ arg: UInt64 = 0) -> (kr: Int32, result: Int64) {
+        guard connection != 0 else { return (-1, 0) }
         var out: UInt64 = 0
-        return rtlsdrhost_call(connection, UInt32(selector), arg, &out)
+        let kr = rtlsdrhost_call(connection, UInt32(selector), arg, &out)
+        return (kr, Int64(bitPattern: out))
     }
 
     func deviceInfo() -> RTLSDRDeviceInfo? {

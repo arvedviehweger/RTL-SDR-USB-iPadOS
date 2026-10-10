@@ -434,10 +434,18 @@ extern "C" int rtlsdr_usb_stream_start(rtlsdr_usb_t usb,
                                        void *ctx)
 {
     RTLSDRTransport *t = (RTLSDRTransport *)usb;
-    if (!t || !t->pipeIn || !t->interface || !t->owner)
+    if (!t || !t->pipeIn || !t->interface || !t->owner) {
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start failed: transport not ready");
         return -1;
-    if (t->streaming)
+    }
+    if (t->streaming) {
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start refused: already streaming");
         return -2;
+    }
+    if (t->streamBufNum != 0 || t->streamCb || t->streamCtx) {
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start cleaning stale resources");
+        rtlsdr_usb_stream_stop(usb);
+    }
     if (buf_num == 0 || buf_num > RTLSDR_MAX_XFER)
         buf_num = RTLSDR_MAX_XFER;
 
@@ -454,6 +462,7 @@ extern "C" int rtlsdr_usb_stream_start(rtlsdr_usb_t usb,
         if (ret != kIOReturnSuccess || !t->streamBuf[i]) {
             os_log(OS_LOG_DEFAULT, "[rtlsdr] stream buffer %u alloc failed: 0x%x", i, ret);
             t->streaming = false;
+            rtlsdr_usb_stream_stop(usb);
             return -1;
         }
         IOAddressSegment seg;
@@ -464,6 +473,7 @@ extern "C" int rtlsdr_usb_stream_start(rtlsdr_usb_t usb,
         if (ret != kIOReturnSuccess || !t->streamAct[i]) {
             os_log(OS_LOG_DEFAULT, "[rtlsdr] stream action %u alloc failed: 0x%x", i, ret);
             t->streaming = false;
+            rtlsdr_usb_stream_stop(usb);
             return -1;
         }
         /* stash the buffer index in the action's reference memory */
@@ -486,15 +496,14 @@ extern "C" int rtlsdr_usb_stream_stop(rtlsdr_usb_t usb)
     RTLSDRTransport *t = (RTLSDRTransport *)usb;
     if (!t)
         return -1;
-    if (!t->streaming)
-        return 0;
 
+    bool wasStreaming = t->streaming;
     t->streaming = false;
 
     /* VERIFY: IOUSBHostPipe::Abort(options, withError, forAction).
      * Use the synchronous option so that all in-flight transfers have
      * completed (and ReadComplete has run) by the time Abort returns. */
-    if (t->pipeIn)
+    if (wasStreaming && t->pipeIn)
         t->pipeIn->Abort(kIOUSBAbortSynchronous, kIOReturnAborted, nullptr);
 
     for (uint32_t i = 0; i < t->streamBufNum; ++i) {
@@ -771,9 +780,11 @@ RTL_SDR::HandleScalarCommand(uint32_t selector, uint64_t arg, uint64_t *result)
         switch (selector) {
         case kRTLSDRMethodStartStream:
             r = rtlsdr_read_async(d, RTLSDR_iqSink, t, 0, 0);
+            os_log(OS_LOG_DEFAULT, "[rtlsdr] StartStream returned %d", r);
             break;
         case kRTLSDRMethodStopStream:
             r = rtlsdr_cancel_async(d);
+            os_log(OS_LOG_DEFAULT, "[rtlsdr] StopStream returned %d", r);
             break;
         case kRTLSDRMethodSetCenterFreq:
             r = rtlsdr_set_center_freq64(d, arg);
@@ -829,8 +840,13 @@ RTL_SDR::HandleScalarCommand(uint32_t selector, uint64_t arg, uint64_t *result)
         }
     });
 
+    if (result && selector != kRTLSDRMethodGetTunerType)
+        out = (uint64_t)(int64_t)r;
     if (result)
         *result = out;
+    if (selector == kRTLSDRMethodStartStream ||
+        selector == kRTLSDRMethodStopStream)
+        return kIOReturnSuccess;
     return (r == 0) ? kIOReturnSuccess : kIOReturnError;
 }
 
