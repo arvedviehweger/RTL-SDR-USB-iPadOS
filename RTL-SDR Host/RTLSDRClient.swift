@@ -70,6 +70,21 @@ final class RTLSDRClient {
         return kr == 0 ? info : nil
     }
 
+    /// "Manufacturer Product" from the dongle's USB string descriptors,
+    /// empty if the device reports none.
+    static func deviceName(_ info: RTLSDRDeviceInfo) -> String {
+        return [cString(info.manufacturer), cString(info.product)]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    /// Decodes a fixed-size C char array (imported as a tuple) up to its NUL.
+    private static func cString<T>(_ chars: T) -> String {
+        return withUnsafeBytes(of: chars) { raw in
+            String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+        }
+    }
+
     // MARK: - Shared IQ ring buffer
 
     @discardableResult
@@ -184,6 +199,8 @@ final class RTLSDRClient {
 
         if let info = deviceInfo() {
             log("✓ GetDeviceInfo:")
+            let name = RTLSDRClient.deviceName(info)
+            log("    device=\(name.isEmpty ? "unknown" : name)")
             log("    valid=\(info.valid)   tuner=\(tunerName(info.tunerType))")
             log("    sampleRate=\(info.sampleRate) Hz   streaming=\(info.streaming)")
         } else {

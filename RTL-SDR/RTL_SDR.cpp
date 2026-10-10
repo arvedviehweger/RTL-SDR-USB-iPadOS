@@ -979,5 +979,8 @@ RTL_SDR::FillDeviceInfo(void *infop)
     info->tunerType  = (uint32_t)rtlsdr_get_tuner_type(t->dev);
     info->sampleRate = rtlsdr_get_sample_rate(t->dev);
     info->streaming  = t->streaming ? 1u : 0u;
+    /* both sides are NUL-terminated 256-byte buffers */
+    memcpy(info->manufacturer, t->manufact, sizeof(info->manufacturer));
+    memcpy(info->product, t->product, sizeof(info->product));
     return kIOReturnSuccess;
 }

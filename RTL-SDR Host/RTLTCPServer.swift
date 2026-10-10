@@ -96,6 +96,10 @@ final class RTLTCPServer {
             client.close()
             return
         }
+        if let info = client.deviceInfo() {
+            let name = RTLSDRClient.deviceName(info)
+            if !name.isEmpty { emit("RTL-SDR: \(name)") }
+        }
 
         // Detect clients that vanish without closing their socket (suspended
         // app, Wi-Fi change, sleeping host): keepalive covers an idle link,
