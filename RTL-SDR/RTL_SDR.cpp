@@ -51,6 +51,13 @@
 #define RTLSDR_MAX_XFER       32      /* hard cap on streaming buffers      */
 #define RTLSDR_CTRL_BUF_SIZE  256     /* reusable control-transfer buffer   */
 
+/* Streaming geometry passed to rtlsdr_read_async(). librtlsdr's default of
+ * 15 x 256 KiB hands IQ to the ring only every 64 ms at 2.048 MS/s (128 ms
+ * at 1.024 MS/s), which rtl_tcp clients see as bursts and gaps. 32 x 32 KiB
+ * delivers every 8 ms and still keeps ~256 ms queued on the USB pipe. */
+#define RTLSDR_STREAM_BUF_NUM RTLSDR_MAX_XFER
+#define RTLSDR_STREAM_BUF_LEN (32u * 1024u)
+
 /* ===========================================================================
  * MARK: - Transport state
  *
@@ -880,7 +887,8 @@ RTL_SDR::HandleScalarCommand(uint32_t selector, uint64_t arg, uint64_t *result)
         rtlsdr_dev_t *d = t->dev;
         switch (selector) {
         case kRTLSDRMethodStartStream:
-            r = rtlsdr_read_async(d, RTLSDR_iqSink, t, 0, 0);
+            r = rtlsdr_read_async(d, RTLSDR_iqSink, t,
+                                  RTLSDR_STREAM_BUF_NUM, RTLSDR_STREAM_BUF_LEN);
             os_log(OS_LOG_DEFAULT, "[rtlsdr] StartStream returned %d", r);
             break;
         case kRTLSDRMethodStopStream:
