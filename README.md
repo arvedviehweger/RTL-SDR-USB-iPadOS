@@ -217,8 +217,8 @@ upstream `rtl_tcp`.
 - Only one TCP client at a time is served. A new connection replaces the
   current one, so a client that vanished without closing its socket cannot
   block reconnects.
-- Manufacturer / product / serial USB string descriptors are stubbed — the
-  RTL-SDR Blog V4 crystal auto-detect path therefore does not trigger.
+- RTL-SDR Blog V4 detection (via the USB manufacturer / product strings) is
+  implemented but not yet verified on V4 hardware.
 - The dext cannot write files (DriverKit sandbox). Any IQ recording feature
   has to live in the host app, consuming the same ring buffer.
 
