@@ -60,6 +60,14 @@
 /* How long StartStream / StopStream wait for the stream loop. */
 #define RTLSDR_STREAM_WAIT_MS 3000
 
+/* "MARKETING_VERSION (CURRENT_PROJECT_VERSION)" of this build, passed in by
+ * GCC_PREPROCESSOR_DEFINITIONS. Reported to the host app, which can tell from
+ * it whether iPadOS still runs an older staged copy of the dext. */
+#define RTLSDR_STRINGIFY(x)        #x
+#define RTLSDR_XSTRINGIFY(x)       RTLSDR_STRINGIFY(x)
+#define RTLSDR_DEXT_VERSION_STRING RTLSDR_XSTRINGIFY(RTLSDR_DEXT_VERSION) \
+                                   " (" RTLSDR_XSTRINGIFY(RTLSDR_DEXT_BUILD) ")"
+
 /* ===========================================================================
  * MARK: - Transport state
  *
@@ -267,7 +275,7 @@ IMPL(RTL_SDR, Start)
         os_log(OS_LOG_DEFAULT, "RTL_SDR::Start super failed: 0x%x", ret);
         return ret;
     }
-    os_log(OS_LOG_DEFAULT, "RTL_SDR::Start");
+    os_log(OS_LOG_DEFAULT, "RTL_SDR::Start (dext %{public}s)", RTLSDR_DEXT_VERSION_STRING);
 
     RTLSDRTransport *t = (RTLSDRTransport *)IOMallocZero(sizeof(RTLSDRTransport));
     if (!t) {
@@ -538,5 +546,8 @@ RTL_SDR::FillDeviceInfo(void *infop)
     /* both sides are NUL-terminated 256-byte buffers */
     memcpy(info->manufacturer, t->manufact, sizeof(info->manufacturer));
     memcpy(info->product, t->product, sizeof(info->product));
+    static_assert(sizeof(RTLSDR_DEXT_VERSION_STRING) <= sizeof(info->dextVersion),
+                  "dext version string too long");
+    memcpy(info->dextVersion, RTLSDR_DEXT_VERSION_STRING, sizeof(RTLSDR_DEXT_VERSION_STRING));
     return kIOReturnSuccess;
 }

@@ -78,6 +78,14 @@ final class RTLSDRClient {
             .joined(separator: " ")
     }
 
+    /// "1.0 (7)" - same format as RTLSDRDeviceInfo.dextVersion.
+    static var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
+    }
+
     /// Decodes a fixed-size C char array (imported as a tuple) up to its NUL.
     private static func cString<T>(_ chars: T) -> String {
         return withUnsafeBytes(of: chars) { raw in
@@ -203,6 +211,13 @@ final class RTLSDRClient {
             log("    device=\(name.isEmpty ? "unknown" : name)")
             log("    valid=\(info.valid)   tuner=\(tunerName(info.tunerType))")
             log("    sampleRate=\(info.sampleRate) Hz   streaming=\(info.streaming)")
+            let dext = RTLSDRClient.cString(info.dextVersion)
+            let app = RTLSDRClient.appVersion
+            log("    dext=\(dext.isEmpty ? "unknown (older build)" : dext)   app=\(app)")
+            if dext != app {
+                log("⚠ The running dext is not the one in this app.")
+                log("  → Replug the RTL-SDR; bump the build number after dext changes.")
+            }
         } else {
             log("⚠ GetDeviceInfo failed (struct method).")
         }

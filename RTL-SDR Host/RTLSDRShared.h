@@ -79,6 +79,8 @@ typedef struct RTLSDRDeviceInfo {
     uint32_t streaming;             /* 1 while IQ streaming is active           */
     char     manufacturer[256];
     char     product[256];
+    char     dextVersion[32];       /* "1.0 (7)": version (build) of the     */
+                                    /* running dext, empty from older dexts */
 } RTLSDRDeviceInfo;
 
 #endif /* RTLSDR_SHARED_H */
