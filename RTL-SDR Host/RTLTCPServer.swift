@@ -60,6 +60,17 @@ final class RTLTCPServer {
     private var connection: NWConnection?
     private var streaming = false
 
+    // Stream statistics, logged every `statsInterval` seconds while a client
+    // is streaming (all accessed on `queue`).
+    private let statsInterval = 5
+    private var statsTimer: DispatchSourceTimer?
+    private var statsSince:     UInt64 = 0      // uptime ns of the last report
+    private var statsRingWrite: UInt64 = 0      // ring writeCount at statsSince
+    private var statsRingDrop:  UInt64 = 0      // ring dropCount at statsSince
+    private var statsSent:      UInt64 = 0      // bytes handed to the socket
+    private var statsLastData:  UInt64 = 0      // uptime ns of the last IQ chunk
+    private var statsMaxGap:    UInt64 = 0      // longest pause between chunks
+
     private(set) var port: UInt16 = 1234
 
     /// Log sink (always called on the main queue).
@@ -165,6 +176,7 @@ final class RTLTCPServer {
         listener?.cancel()
         listener = nil
         commandQueue.sync {}                // let queued commands finish before close()
+        stopStats()
         if streaming {
             client.call(kRTLSDRMethodStopStream)
             streaming = false
@@ -222,6 +234,8 @@ final class RTLTCPServer {
             client.call(kRTLSDRMethodStopStream)
             emit("⚠ StartStream failed (kr=0x\(String(format: "%08X", UInt32(bitPattern: startKR))), rtl=\(start.result)).")
         }
+        // Logs an "IQ:" statistics line every few seconds; comment out to disable.
+        if streaming { startStats() }
 
         pumpIQ(conn)
         receiveCommand()
@@ -237,6 +251,7 @@ final class RTLTCPServer {
     private func dropClient(_ conn: NWConnection) {
         connection = nil
         conn.cancel()
+        stopStats()
         if streaming {
             client.call(kRTLSDRMethodStopStream)
             streaming = false
@@ -269,6 +284,7 @@ final class RTLTCPServer {
         guard connection === conn, streaming else { return }
 
         if let data = client.readIQ(), !data.isEmpty {
+            noteIQChunk(data.count)
             conn.send(content: data, completion: .contentProcessed { [weak self] error in
                 guard let self = self else { return }
                 guard self.connection === conn else { return }
@@ -284,6 +300,60 @@ final class RTLTCPServer {
                 self?.pumpIQ(conn)
             }
         }
+    }
+
+    // MARK: - Stream statistics
+
+    /// Reports, per interval: what arrived from USB versus 2 x sample rate,
+    /// what went to the socket, the longest pause between IQ chunks (what a
+    /// client's audio buffer has to bridge) and bytes lost in the ring.
+    private func startStats() {
+        stopStats()
+        statsLastData = 0
+        resetStats(at: DispatchTime.now().uptimeNanoseconds)
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + .seconds(statsInterval),
+                       repeating: .seconds(statsInterval))
+        timer.setEventHandler { [weak self] in self?.logStats() }
+        timer.resume()
+        statsTimer = timer
+    }
+
+    private func stopStats() {
+        statsTimer?.cancel()
+        statsTimer = nil
+    }
+
+    private func resetStats(at now: UInt64) {
+        statsSince     = now
+        statsRingWrite = client.ringWriteCount
+        statsRingDrop  = client.ringDropCount
+        statsSent      = 0
+        statsMaxGap    = 0
+    }
+
+    private func noteIQChunk(_ count: Int) {
+        let now = DispatchTime.now().uptimeNanoseconds
+        if statsLastData != 0 {
+            statsMaxGap = max(statsMaxGap, now - statsLastData)
+        }
+        statsLastData = now
+        statsSent += UInt64(count)
+    }
+
+    private func logStats() {
+        let now  = DispatchTime.now().uptimeNanoseconds
+        let secs = Double(now - statsSince) / 1e9
+        guard secs > 0 else { return }
+
+        let usb      = Double(client.ringWriteCount &- statsRingWrite) / secs
+        let sent     = Double(statsSent) / secs
+        let drops    = client.ringDropCount &- statsRingDrop
+        let expected = 2 * Double(client.deviceInfo()?.sampleRate ?? 0)
+        emit(String(format: "IQ: USB %.2f MB/s (expected %.2f), sent %.2f MB/s, max gap %.0f ms, ring drops %llu B",
+                    usb / 1e6, expected / 1e6, sent / 1e6,
+                    Double(statsMaxGap) / 1e6, drops))
+        resetStats(at: now)
     }
 
     // MARK: - Command channel (socket -> control methods)
