@@ -47,6 +47,10 @@ final class RTLTCPServer {
 
     private let client: RTLSDRClient
     private let queue  = DispatchQueue(label: "com.m0kds.rtltcp.server")
+    /// Control commands block on USB I/O in the dext (I2C to the tuner).
+    /// Running them here keeps the IQ pump on `queue` going meanwhile; the
+    /// serial queue preserves the order in which the client sent them.
+    private let commandQueue = DispatchQueue(label: "com.m0kds.rtltcp.commands")
 
     private var listener:   NWListener?
     private var connection: NWConnection?
@@ -155,6 +159,7 @@ final class RTLTCPServer {
         connection = nil
         listener?.cancel()
         listener = nil
+        commandQueue.sync {}                // let queued commands finish before close()
         if streaming {
             client.call(kRTLSDRMethodStopStream)
             streaming = false
@@ -285,7 +290,10 @@ final class RTLTCPServer {
             guard let self = self else { return }
             guard self.connection === conn else { return }
             if let data = data, data.count == 5 {
-                self.handleCommand([UInt8](data))
+                let bytes = [UInt8](data)
+                self.commandQueue.async { [weak self] in
+                    self?.handleCommand(bytes)
+                }
             }
             if isComplete || error != nil {
                 self.onClientGone(conn)
