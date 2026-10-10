@@ -125,6 +125,9 @@ RTL-SDR Host/                       ← host application target
      `NSLocalNetworkUsageDescription`.
 4. **Build & run** the host-app target on a real iPad. The embedded dext is
    installed automatically. Next go to Settings -> Apps -> RTL-SDR-Host and enable the driver.
+   When you change the dext, bump the build number (`CURRENT_PROJECT_VERSION`)
+   before reinstalling. iPadOS keeps running its staged copy of the dext
+   while the version stays the same. Replug the RTL-SDR afterwards.
 5. Plug in the RTL-SDR. The dext matches the USB device and starts. You may use the "Test Connection" feature of the RTL-SDR-Host app. The iPad
    console also shows lines like
 
@@ -211,7 +214,9 @@ upstream `rtl_tcp`.
 
 ## Status and known limitations
 
-- Only one TCP client at a time is served, like upstream `rtl_tcp`.
+- Only one TCP client at a time is served. A new connection replaces the
+  current one, so a client that vanished without closing its socket cannot
+  block reconnects.
 - Manufacturer / product / serial USB string descriptors are stubbed — the
   RTL-SDR Blog V4 crystal auto-detect path therefore does not trigger.
 - The dext cannot write files (DriverKit sandbox). Any IQ recording feature
