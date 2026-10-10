@@ -6,38 +6,34 @@
 //
 //  DriverKit interface driver for the RTL2832U.
 //
-//  This file is the USBDriverKit transport layer underneath the ported
-//  librtlsdr core. It provides:
-//    * the C bridge declared in rtlsdr_usb.h (control transfers, bulk reads,
-//      asynchronous IQ streaming, device reset),
-//    * the DriverKit compatibility shims declared in rtlsdr_compat.h
-//      (rtlsdr_log / rtlsdr_msleep / rtlsdr_mem_alloc / rtlsdr_mem_free),
-//    * the device life cycle (Start / Stop),
+//  librtlsdr (third_party/librtlsdr) is compiled unmodified. It talks to the
+//  device through the libusb, pthread and libc shims in Shim/ at the top of
+//  the repository. This file
+//  provides:
+//    * the device life cycle (Start / Stop), which attaches the matched USB
+//      interface to the libusb shim and opens it with rtlsdr_open(),
+//    * the IQ stream, i.e. rtlsdr_read_async() and its callback,
 //    * the IOUserClient factory (NewUserClient),
 //    * the local entry points used by RTL_SDR_UserClient.
 //
 //  Threading model
 //  ---------------
-//  Control of the device runs on RTL_SDR's *default* dispatch queue (grabbed
-//  once via CopyDispatchQueue). Start/Stop already run there;
-//  HandleScalarCommand hops onto it with DispatchSync; softagc gain changes
-//  are posted with DispatchAsync. A single serial queue means the recursive
-//  I2C lock of the original librtlsdr code is no longer needed.
+//  Device control runs on RTL_SDR's *default* dispatch queue (grabbed once
+//  via CopyDispatchQueue). Start/Stop already run there; HandleScalarCommand
+//  hops onto it with DispatchSync.
 //
-//  IQ streaming runs on a second serial queue ("Stream"): ReadComplete is
-//  delivered there and the stream start/stop bridge functions hop onto it, so
-//  it alone owns the streaming state. Control commands (tuner re-init, I2C)
-//  therefore no longer hold up the bulk-IN completions - the same split as
-//  upstream, where libusb callbacks run on their own thread.
-//
-//  NOTE: a few USBDriverKit method signatures / constant names below are
-//  marked "VERIFY" - please check them against the USBDriverKit SDK headers
-//  in your Xcode version; they are the only spots likely to need a tweak.
+//  IQ streaming runs on a second, reentrant queue ("Stream"). StartStream
+//  posts rtlsdr_read_async() there, where it runs librtlsdr's libusb event
+//  loop until rtlsdr_cancel_async(). While the loop waits it sleeps on the
+//  queue, which lets ReadComplete (QUEUENAME(Stream)) deliver the bulk-IN
+//  completions to the libusb shim. This is upstream's own split - control
+//  calls on one thread, the libusb event loop and IQ callbacks on another,
+//  with librtlsdr's I2C mutex in between.
 //
 
-#include <stdarg.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <os/log.h>
 
 #include <DriverKit/IOLib.h>
@@ -51,35 +47,30 @@
 #include "RTL_SDR.h"
 
 #include "rtl-sdr.h"
-#include "rtlsdr_usb.h"
 #include "RTLSDRShared.h"
-
-#define RTLSDR_MAX_XFER       32      /* hard cap on streaming buffers      */
-#define RTLSDR_CTRL_BUF_SIZE  256     /* reusable control-transfer buffer   */
+#include "libusb_driverkit.h"
 
 /* Streaming geometry passed to rtlsdr_read_async(). librtlsdr's default of
  * 15 x 256 KiB hands IQ to the ring only every 64 ms at 2.048 MS/s (128 ms
  * at 1.024 MS/s), which rtl_tcp clients see as bursts and gaps. 32 x 32 KiB
  * delivers every 8 ms and still keeps ~256 ms queued on the USB pipe. */
-#define RTLSDR_STREAM_BUF_NUM RTLSDR_MAX_XFER
+#define RTLSDR_STREAM_BUF_NUM 32
 #define RTLSDR_STREAM_BUF_LEN (32u * 1024u)
+
+/* How long StartStream / StopStream wait for the stream loop. */
+#define RTLSDR_STREAM_WAIT_MS 3000
 
 /* ===========================================================================
  * MARK: - Transport state
  *
- * The opaque rtlsdr_usb_t handle that librtlsdr.c passes around is a pointer
- * to this struct. It is allocated in Start() and freed in Stop().
+ * Allocated in Start() and freed in Stop().
  * ======================================================================== */
 struct RTLSDRTransport {
     RTL_SDR                  *owner;        /* back-pointer to the dext object */
     IOUSBHostInterface       *interface;    /* matched USB interface (provider)*/
-    IOUSBHostPipe            *pipeIn;       /* bulk-IN pipe, endpoint 0x81     */
     IODispatchQueue          *deviceQueue;  /* RTL_SDR default queue (retained)*/
-    IODispatchQueue          *streamQueue;  /* runs ReadComplete, owns stream  */
-    bool                      streamQueueLogged; /* queue check logged once    */
-
-    IOBufferMemoryDescriptor *ctrlBuffer;   /* reusable control buffer         */
-    uint8_t                  *ctrlBytes;    /* mapped address of ctrlBuffer    */
+    IODispatchQueue          *streamQueue;  /* runs the libusb event loop      */
+    bool                      usbAttached;  /* interface handed to the shim    */
 
     IOBufferMemoryDescriptor *iqRing;       /* shared IQ ring (app-mapped)     */
     RTLSDRRingBuffer         *iqRingAddr;   /* mapped address of iqRing        */
@@ -88,221 +79,14 @@ struct RTLSDRTransport {
     char                      manufact[256]; /* USB strings, read in Start()  */
     char                      product[256];
 
-    /* asynchronous streaming */
-    bool                      streaming;
-    uint32_t                  streamBufNum;
-    uint32_t                  streamBufLen;
-    uint32_t                  streamGen;    /* bumped on every stream start    */
-    IOBufferMemoryDescriptor *streamBuf[RTLSDR_MAX_XFER];
-    OSAction                 *streamAct[RTLSDR_MAX_XFER];
-    uint8_t                  *streamAddr[RTLSDR_MAX_XFER];
-    /* streamGen of the transfer in flight on this buffer, 0 == idle */
-    uint32_t                  streamInFlight[RTLSDR_MAX_XFER];
-    rtlsdr_usb_stream_cb_t    streamCb;
-    void                     *streamCtx;
+    /* set while rtlsdr_read_async() runs on the stream queue */
+    bool                      streaming;    /* atomic                          */
+    int                       streamResult; /* its return value                */
 };
 
 struct RTL_SDR_IVars {
     RTLSDRTransport *t;
 };
-
-static void RTLSDR_TeardownTransport(RTLSDRTransport *t);
-
-/* ===========================================================================
- * MARK: - librtlsdr compatibility shims (rtlsdr_compat.h)
- * ======================================================================== */
-
-/* ---- minimal printf-style formatter ------------------------------------
- * DriverKit does not export vsnprintf(), so rtlsdr_log() formats the
- * conversion specifiers librtlsdr actually uses itself:
- *     d i u x X p c s f e g %%
- * with optional '0' flag, field width, '.'precision and the l / ll / h / z
- * length modifiers. va_arg() itself is a compiler builtin and needs no libc.
- * The output buffer is always NUL-terminated.
- */
-static void rtlsdr__emit(char *out, size_t cap, size_t *pos, char c)
-{
-    if (*pos + 1 < cap)
-        out[*pos] = c;
-    (*pos)++;
-}
-
-static void rtlsdr__emit_str(char *out, size_t cap, size_t *pos,
-                             const char *s, int width, int leftAlign)
-{
-    const char *p = s ? s : "(null)";
-    int len = 0;
-    while (p[len]) ++len;
-    if (!leftAlign)
-        for (int i = len; i < width; ++i) rtlsdr__emit(out, cap, pos, ' ');
-    for (int i = 0; i < len; ++i) rtlsdr__emit(out, cap, pos, p[i]);
-    if (leftAlign)
-        for (int i = len; i < width; ++i) rtlsdr__emit(out, cap, pos, ' ');
-}
-
-static void rtlsdr__emit_num(char *out, size_t cap, size_t *pos,
-                             unsigned long long v, int base, int upper,
-                             int negative, int width, int prec, int zero)
-{
-    char digits[24];
-    const char *set = upper ? "0123456789ABCDEF" : "0123456789abcdef";
-    int n = 0;
-    if (!(v == 0 && prec == 0)) {
-        do {
-            digits[n++] = set[v % (unsigned)base];
-            v /= (unsigned)base;
-        } while (v && n < (int)sizeof(digits));
-    }
-    while (n < prec && n < (int)sizeof(digits))
-        digits[n++] = '0';                    /* precision == minimum digits */
-
-    int body = n + (negative ? 1 : 0);
-    int pad  = (width > body) ? (width - body) : 0;
-
-    if (zero && prec < 0) {
-        if (negative) rtlsdr__emit(out, cap, pos, '-');
-        for (int i = 0; i < pad; ++i) rtlsdr__emit(out, cap, pos, '0');
-    } else {
-        for (int i = 0; i < pad; ++i) rtlsdr__emit(out, cap, pos, ' ');
-        if (negative) rtlsdr__emit(out, cap, pos, '-');
-    }
-    while (n > 0) rtlsdr__emit(out, cap, pos, digits[--n]);
-}
-
-static void rtlsdr__emit_double(char *out, size_t cap, size_t *pos,
-                                double d, int prec)
-{
-    if (prec < 0) prec = 6;
-    if (prec > 9) prec = 9;
-
-    int neg = 0;
-    if (d < 0.0) { neg = 1; d = -d; }
-    if (neg)
-        rtlsdr__emit(out, cap, pos, '-');
-    if (d > 1.8e18) {                         /* outside 64-bit integer range */
-        rtlsdr__emit_str(out, cap, pos, "ovf", 0, 0);
-        return;
-    }
-    unsigned long long scale = 1;
-    for (int i = 0; i < prec; ++i) scale *= 10ULL;
-    unsigned long long scaled = (unsigned long long)(d * (double)scale + 0.5);
-    rtlsdr__emit_num(out, cap, pos, scaled / scale, 10, 0, 0, 0, -1, 0);
-    if (prec > 0) {
-        rtlsdr__emit(out, cap, pos, '.');
-        rtlsdr__emit_num(out, cap, pos, scaled % scale, 10, 0, 0, 0, prec, 0);
-    }
-}
-
-static void rtlsdr__vformat(char *out, size_t cap, const char *fmt, va_list ap)
-{
-    size_t pos = 0;
-    for (const char *p = fmt; p && *p; ++p) {
-        if (*p != '%') { rtlsdr__emit(out, cap, &pos, *p); continue; }
-        ++p;
-        if (*p == '%') { rtlsdr__emit(out, cap, &pos, '%'); continue; }
-        if (*p == '\0') break;
-
-        int leftAlign = 0, zero = 0;
-        for (;; ++p) {
-            if (*p == '-')      leftAlign = 1;
-            else if (*p == '0') zero = 1;
-            else if (*p == '+' || *p == ' ' || *p == '#') { /* ignored */ }
-            else break;
-        }
-        int width = 0;
-        while (*p >= '0' && *p <= '9') { width = width * 10 + (*p - '0'); ++p; }
-        int prec = -1;
-        if (*p == '.') {
-            ++p; prec = 0;
-            while (*p >= '0' && *p <= '9') { prec = prec * 10 + (*p - '0'); ++p; }
-        }
-        int lng = 0;
-        while (*p == 'l' || *p == 'h' || *p == 'z' || *p == 'j' || *p == 't') {
-            if (*p == 'l') ++lng;
-            ++p;
-        }
-        switch (*p) {
-        case 'd': case 'i': {
-            long long v = (lng >= 1) ? va_arg(ap, long long)
-                                     : (long long)va_arg(ap, int);
-            int neg = (v < 0);
-            unsigned long long u = neg
-                ? (unsigned long long)(-(v + 1)) + 1ULL
-                : (unsigned long long)v;
-            rtlsdr__emit_num(out, cap, &pos, u, 10, 0, neg, width, prec, zero);
-            break;
-        }
-        case 'u': {
-            unsigned long long v = (lng >= 1)
-                ? va_arg(ap, unsigned long long)
-                : (unsigned long long)va_arg(ap, unsigned int);
-            rtlsdr__emit_num(out, cap, &pos, v, 10, 0, 0, width, prec, zero);
-            break;
-        }
-        case 'x': case 'X': {
-            unsigned long long v = (lng >= 1)
-                ? va_arg(ap, unsigned long long)
-                : (unsigned long long)va_arg(ap, unsigned int);
-            rtlsdr__emit_num(out, cap, &pos, v, 16, (*p == 'X'),
-                             0, width, prec, zero);
-            break;
-        }
-        case 'p': {
-            void *vp = va_arg(ap, void *);
-            rtlsdr__emit(out, cap, &pos, '0');
-            rtlsdr__emit(out, cap, &pos, 'x');
-            rtlsdr__emit_num(out, cap, &pos,
-                             (unsigned long long)(uintptr_t)vp,
-                             16, 0, 0, 0, -1, 0);
-            break;
-        }
-        case 'c':
-            rtlsdr__emit(out, cap, &pos, (char)va_arg(ap, int));
-            break;
-        case 's':
-            rtlsdr__emit_str(out, cap, &pos, va_arg(ap, const char *),
-                             width, leftAlign);
-            break;
-        case 'f': case 'F': case 'e': case 'E': case 'g': case 'G':
-            rtlsdr__emit_double(out, cap, &pos, va_arg(ap, double), prec);
-            break;
-        case '\0':
-            out[(pos < cap) ? pos : (cap - 1)] = '\0';
-            return;
-        default:
-            rtlsdr__emit(out, cap, &pos, '%');
-            rtlsdr__emit(out, cap, &pos, *p);
-            break;
-        }
-    }
-    out[(pos < cap) ? pos : (cap - 1)] = '\0';
-}
-
-extern "C" void rtlsdr_log(const char *fmt, ...)
-{
-    char buf[256];
-    va_list ap;
-    va_start(ap, fmt);
-    rtlsdr__vformat(buf, sizeof(buf), fmt, ap);
-    va_end(ap);
-    os_log(OS_LOG_DEFAULT, "[rtlsdr] %{public}s", buf);
-}
-
-extern "C" void rtlsdr_msleep(uint32_t ms)
-{
-    IOSleep(ms);
-}
-
-extern "C" void *rtlsdr_mem_alloc(uint32_t size)
-{
-    return IOMallocZero(size);
-}
-
-extern "C" void rtlsdr_mem_free(void *ptr, uint32_t size)
-{
-    if (ptr)
-        IOFree(ptr, size);
-}
 
 /* ===========================================================================
  * MARK: - IQ sink
@@ -341,369 +125,105 @@ static void RTLSDR_iqSink(unsigned char *buf, uint32_t len, void *ctx)
 }
 
 /* ===========================================================================
- * MARK: - USB C bridge (rtlsdr_usb.h)
+ * MARK: - IQ stream
+ *
+ * rtlsdr_read_async() is librtlsdr's libusb event loop: it only returns
+ * after rtlsdr_cancel_async(), so it gets the stream queue to itself.
  * ======================================================================== */
 
-extern "C" int rtlsdr_usb_control_transfer(rtlsdr_usb_t usb,
-                                           uint8_t  bmRequestType,
-                                           uint8_t  bRequest,
-                                           uint16_t wValue,
-                                           uint16_t wIndex,
-                                           uint8_t *data,
-                                           uint16_t wLength,
-                                           uint32_t timeout_ms)
+static bool RTLSDR_IsStreaming(RTLSDRTransport *t)
 {
-    RTLSDRTransport *t = (RTLSDRTransport *)usb;
-    if (!t || !t->interface || !t->ctrlBuffer)
-        return -1;
-
-    const bool isIn = (bmRequestType & 0x80u) != 0;
-
-    if (!isIn && wLength > 0 && data)
-        memcpy(t->ctrlBytes, data, wLength);
-
-    /* The descriptor must report exactly the transfer length. */
-    t->ctrlBuffer->SetLength(wLength ? wLength : 1);
-
-    uint16_t transferred = 0;
-    /* IOUSBHostInterface::DeviceRequest - synchronous form: the five USB
-     * setup-packet fields, then the data buffer, the byte count and a
-     * completion timeout. */
-    kern_return_t ret = t->interface->DeviceRequest(bmRequestType,
-                                                    bRequest,
-                                                    wValue,
-                                                    wIndex,
-                                                    wLength,
-                                                    t->ctrlBuffer,
-                                                    &transferred,
-                                                    timeout_ms);
-    if (ret != kIOReturnSuccess)
-        return -1;
-
-    if (isIn && data && transferred > 0) {
-        uint16_t n = (transferred < wLength) ? transferred : wLength;
-        memcpy(data, t->ctrlBytes, n);
-    }
-    return (int)transferred;
+    return __atomic_load_n(&t->streaming, __ATOMIC_ACQUIRE);
 }
 
-extern "C" int rtlsdr_usb_bulk_read(rtlsdr_usb_t usb,
-                                    uint8_t *data,
-                                    int      length,
-                                    int     *transferred,
-                                    uint32_t timeout_ms)
+/* Returns like a synchronous start: 0 once transfers are in flight, or the
+ * result of rtlsdr_read_async() if it ended before that. */
+static int RTLSDR_StartStream(RTLSDRTransport *t)
 {
-    RTLSDRTransport *t = (RTLSDRTransport *)usb;
-    if (!t || !t->pipeIn || !t->interface || length <= 0)
-        return -1;
-
-    IOBufferMemoryDescriptor *buf = nullptr;
-    kern_return_t ret = t->interface->CreateIOBuffer(kIOMemoryDirectionIn,
-                                                     (uint64_t)length, &buf);
-    if (ret != kIOReturnSuccess || !buf)
-        return -1;
-
-    uint32_t got = 0;
-    /* VERIFY: synchronous IOUSBHostPipe::IO(buffer, length, &count, timeout) */
-    ret = t->pipeIn->IO(buf, (uint32_t)length, &got, timeout_ms);
-    if (ret == kIOReturnSuccess) {
-        IOAddressSegment seg;
-        buf->GetAddressRange(&seg);
-        memcpy(data, (void *)seg.address, got);
-        if (transferred)
-            *transferred = (int)got;
-    }
-    OSSafeReleaseNULL(buf);
-    return (ret == kIOReturnSuccess) ? 0 : -1;
-}
-
-extern "C" int rtlsdr_usb_reset(rtlsdr_usb_t usb)
-{
-    RTLSDRTransport *t = (RTLSDRTransport *)usb;
-    if (!t || !t->interface)
-        return -1;
-
-    IOUSBHostDevice *dev = nullptr;
-    /* VERIFY: IOUSBHostInterface::CopyDevice / IOUSBHostDevice::Reset */
-    kern_return_t ret = t->interface->CopyDevice(&dev);
-    if (ret == kIOReturnSuccess && dev) {
-        ret = dev->Reset();
-        OSSafeReleaseNULL(dev);
-    }
-    return (ret == kIOReturnSuccess) ? 0 : -1;
-}
-
-/* Reads string descriptor `index` into `out` (>= 256 bytes) as ASCII, the
- * way libusb_get_string_descriptor_ascii() does: non-ASCII becomes '?'.
- * Leaves `out` empty if the device has no such string. */
-static void RTLSDR_CopyStringASCII(IOUSBHostDevice *dev, uint8_t index, char *out)
-{
-    out[0] = '\0';
-    if (!index)
-        return;
-    const IOUSBStringDescriptor *sd = dev->CopyStringDescriptor(index);
-    if (!sd)
-        return;
-
-    /* bString is UTF-16LE, starting right after bLength / bDescriptorType */
-    const uint8_t *raw = (const uint8_t *)sd;
-    uint32_t n = 0;
-    for (uint32_t i = 2; i + 1 < sd->bLength && n < 255; i += 2)
-        out[n++] = ((raw[i] & 0x80) || raw[i + 1]) ? '?' : (char)raw[i];
-    out[n] = '\0';
-    IOUSBHostFreeDescriptor(sd);
-}
-
-extern "C" int rtlsdr_usb_get_strings(rtlsdr_usb_t usb,
-                                      char *manufact, char *product, char *serial)
-{
-    /* librtlsdr uses manufacturer + product to detect the RTL-SDR Blog V4
-     * (28.8 MHz R828D crystal, HF upconversion, input switching). */
-    if (manufact) manufact[0] = '\0';
-    if (product)  product[0]  = '\0';
-    if (serial)   serial[0]   = '\0';
-
-    RTLSDRTransport *t = (RTLSDRTransport *)usb;
-    if (!t || !t->interface)
-        return -1;
-
-    IOUSBHostDevice *dev = nullptr;
-    kern_return_t ret = t->interface->CopyDevice(&dev);
-    if (ret != kIOReturnSuccess || !dev)
-        return -1;
-
-    const IOUSBDeviceDescriptor *dd = dev->CopyDeviceDescriptor();
-    if (!dd) {
-        OSSafeReleaseNULL(dev);
-        return -1;
-    }
-    if (manufact) RTLSDR_CopyStringASCII(dev, dd->iManufacturer, manufact);
-    if (product)  RTLSDR_CopyStringASCII(dev, dd->iProduct, product);
-    if (serial)   RTLSDR_CopyStringASCII(dev, dd->iSerialNumber, serial);
-
-    IOUSBHostFreeDescriptor(dd);
-    OSSafeReleaseNULL(dev);
-    return 0;
-}
-
-/* Releases the streaming buffers and their completion actions. Only safe
- * while no completion is pending: ReadComplete dereferences the action. */
-static void RTLSDR_FreeStreamPool(RTLSDRTransport *t)
-{
-    for (uint32_t i = 0; i < RTLSDR_MAX_XFER; ++i) {
-        OSSafeReleaseNULL(t->streamAct[i]);
-        OSSafeReleaseNULL(t->streamBuf[i]);
-        t->streamAddr[i] = nullptr;
-        t->streamInFlight[i] = 0;
-    }
-    t->streamBufNum = 0;
-    t->streamBufLen = 0;
-}
-
-static uint32_t RTLSDR_StreamInFlight(const RTLSDRTransport *t)
-{
-    uint32_t n = 0;
-    for (uint32_t i = 0; i < t->streamBufNum; ++i)
-        if (t->streamInFlight[i])
-            ++n;
-    return n;
-}
-
-/* Runs `block` on the stream queue, which owns all streaming state. Before
- * the queue exists (early Start failure) it runs on the caller's queue. */
-static void RTLSDR_OnStreamQueue(RTLSDRTransport *t, IODispatchBlock block)
-{
-    if (t->streamQueue)
-        t->streamQueue->DispatchSync(block);
-    else
-        block();
-}
-
-/* rtlsdr_usb_stream_start, on the stream queue */
-static int RTLSDR_DoStreamStart(RTLSDRTransport *t,
-                                uint32_t buf_num,
-                                uint32_t buf_len,
-                                rtlsdr_usb_stream_cb_t cb,
-                                void *ctx)
-{
-    if (!t->pipeIn || !t->interface || !t->owner) {
-        os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start failed: transport not ready");
-        return -1;
-    }
-    if (t->streaming) {
-        os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start refused: already streaming");
+    if (RTLSDR_IsStreaming(t))
         return -2;
-    }
-    if (buf_num == 0 || buf_num > RTLSDR_MAX_XFER)
-        buf_num = RTLSDR_MAX_XFER;
 
-    /* The buffer pool survives a stop and is reused (see
-     * rtlsdr_usb_stream_stop). It can only be rebuilt with a different
-     * geometry once every completion of the previous stream has arrived. */
-    if (t->streamBufNum &&
-        (t->streamBufNum != buf_num || t->streamBufLen != buf_len)) {
-        uint32_t inFlight = RTLSDR_StreamInFlight(t);
-        if (inFlight) {
-            os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start refused: %u transfers pending",
-                   inFlight);
-            return -2;
-        }
-        RTLSDR_FreeStreamPool(t);
-    }
+    t->streamResult = 0;
+    __atomic_store_n(&t->streaming, true, __ATOMIC_RELEASE);
+    t->streamQueue->DispatchAsync(^{
+        int r = rtlsdr_read_async(t->dev, RTLSDR_iqSink, t,
+                                  RTLSDR_STREAM_BUF_NUM, RTLSDR_STREAM_BUF_LEN);
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] rtlsdr_read_async returned %d", r);
+        t->streamResult = r;
+        __atomic_store_n(&t->streaming, false, __ATOMIC_RELEASE);
+    });
 
-    /* allocate buffers and one completion action per buffer */
-    if (!t->streamBufNum) {
-        for (uint32_t i = 0; i < buf_num; ++i) {
-            kern_return_t ret = t->interface->CreateIOBuffer(kIOMemoryDirectionIn,
-                                                             buf_len, &t->streamBuf[i]);
-            if (ret != kIOReturnSuccess || !t->streamBuf[i]) {
-                os_log(OS_LOG_DEFAULT, "[rtlsdr] stream buffer %u alloc failed: 0x%x", i, ret);
-                RTLSDR_FreeStreamPool(t);
-                return -1;
-            }
-            IOAddressSegment seg;
-            t->streamBuf[i]->GetAddressRange(&seg);
-            t->streamAddr[i] = (uint8_t *)seg.address;
-
-            ret = t->owner->CreateActionReadComplete(sizeof(uint64_t), &t->streamAct[i]);
-            if (ret != kIOReturnSuccess || !t->streamAct[i]) {
-                os_log(OS_LOG_DEFAULT, "[rtlsdr] stream action %u alloc failed: 0x%x", i, ret);
-                RTLSDR_FreeStreamPool(t);
-                return -1;
-            }
-            /* stash the buffer index in the action's reference memory */
-            *(uint64_t *)t->streamAct[i]->GetReference() = (uint64_t)i;
-        }
-        t->streamBufNum = buf_num;
-        t->streamBufLen = buf_len;
+    for (uint32_t ms = 0; ms < RTLSDR_STREAM_WAIT_MS; ++ms) {
+        if (!RTLSDR_IsStreaming(t))
+            return t->streamResult ? t->streamResult : -1;
+        if (libusb_driverkit_active_transfers() > 0)
+            return 0;
+        IOSleep(1);
     }
-
-    if (++t->streamGen == 0)
-        t->streamGen = 1;                   /* 0 means "idle" */
-    t->streamCb  = cb;
-    t->streamCtx = ctx;
-    t->streaming = true;
-
-    /* submit them all - completion timeout 0 == stream continuously.
-     * A buffer whose completion from the previous stream has not arrived
-     * yet is skipped; ReadComplete resubmits it once that completion is in. */
-    uint32_t submitted = 0;
-    for (uint32_t i = 0; i < buf_num; ++i) {
-        if (t->streamInFlight[i])
-            continue;
-        kern_return_t ret = t->pipeIn->AsyncIO(t->streamBuf[i], buf_len,
-                                               t->streamAct[i], 0);
-        if (ret == kIOReturnSuccess) {
-            t->streamInFlight[i] = t->streamGen;
-            ++submitted;
-        } else {
-            os_log(OS_LOG_DEFAULT, "[rtlsdr] AsyncIO submit %u failed: 0x%x", i, ret);
-        }
-    }
-    if (!submitted && !RTLSDR_StreamInFlight(t)) {
-        t->streaming = false;
-        t->streamCb  = nullptr;
-        t->streamCtx = nullptr;
-        return -1;
-    }
-    os_log(OS_LOG_DEFAULT, "[rtlsdr] streaming started: %u x %u bytes", buf_num, buf_len);
     return 0;
 }
 
-/* rtlsdr_usb_stream_stop, on the stream queue */
-static int RTLSDR_DoStreamStop(RTLSDRTransport *t)
+/* rtlsdr_cancel_async() only flags the loop; wait until rtlsdr_read_async()
+ * has returned, so that a following start or rtlsdr_close() finds librtlsdr
+ * inactive. Returns the rtlsdr_cancel_async() result. */
+static int RTLSDR_StopStream(RTLSDRTransport *t)
 {
-    bool wasStreaming = t->streaming;
-    t->streaming = false;
+    int r = rtlsdr_cancel_async(t->dev);
+    bool woken = false;
 
-    /* VERIFY: IOUSBHostPipe::Abort(options, withError, forAction).
-     * We run on the stream queue, which is also where ReadComplete is
-     * delivered, so the aborted completions only arrive after we return.
-     * The buffers and actions must stay alive until then - releasing them
-     * here crashed the dext in ReadComplete (OSAction::GetReference). They
-     * are reused by the next start and released in the transport teardown. */
-    if (wasStreaming && t->pipeIn)
-        t->pipeIn->Abort(kIOUSBAbortSynchronous, kIOReturnAborted, nullptr);
-
-    t->streamCb  = nullptr;
-    t->streamCtx = nullptr;
-    os_log(OS_LOG_DEFAULT, "[rtlsdr] streaming stopped (%u transfers pending)",
-           RTLSDR_StreamInFlight(t));
-    return 0;
-}
-
-extern "C" int rtlsdr_usb_stream_start(rtlsdr_usb_t usb,
-                                       uint32_t buf_num,
-                                       uint32_t buf_len,
-                                       rtlsdr_usb_stream_cb_t cb,
-                                       void *ctx)
-{
-    RTLSDRTransport *t = (RTLSDRTransport *)usb;
-    if (!t) {
-        os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start failed: transport not ready");
-        return -1;
+    for (uint32_t ms = 0; RTLSDR_IsStreaming(t) && ms < RTLSDR_STREAM_WAIT_MS; ++ms) {
+        /* A loop posted just before may not be running yet. */
+        if (r != 0)
+            r = rtlsdr_cancel_async(t->dev);
+        /* Don't wait for its next event or timeout. */
+        if (r == 0 && !woken) {
+            libusb_interrupt_event_handler(nullptr);
+            woken = true;
+        }
+        IOSleep(1);
     }
-    __block int r = -1;
-    RTLSDR_OnStreamQueue(t, ^{
-        r = RTLSDR_DoStreamStart(t, buf_num, buf_len, cb, ctx);
-    });
+    if (RTLSDR_IsStreaming(t))
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] stream loop still running after %u ms",
+               RTLSDR_STREAM_WAIT_MS);
     return r;
-}
-
-extern "C" int rtlsdr_usb_stream_stop(rtlsdr_usb_t usb)
-{
-    RTLSDRTransport *t = (RTLSDRTransport *)usb;
-    if (!t)
-        return -1;
-    __block int r = -1;
-    RTLSDR_OnStreamQueue(t, ^{
-        r = RTLSDR_DoStreamStop(t);
-    });
-    return r;
-}
-
-extern "C" void rtlsdr_softagc_schedule(rtlsdr_usb_t usb)
-{
-    RTLSDRTransport *t = (RTLSDRTransport *)usb;
-    if (!t || !t->deviceQueue || !t->dev)
-        return;
-    rtlsdr_dev_t *d = t->dev;
-    /* Apply the gain change serialised on the device queue. */
-    t->deviceQueue->DispatchAsync(^{
-        rtlsdr_softagc_apply(d);
-    });
 }
 
 /* ===========================================================================
  * MARK: - Transport teardown
  * ======================================================================== */
-static void RTLSDR_TeardownTransport(RTLSDRTransport *t)
+
+static kern_return_t RTLSDR_CreateReadAction(void *ctx, size_t referenceSize,
+                                             OSAction **action)
+{
+    return ((RTL_SDR *)ctx)->CreateActionReadComplete(referenceSize, action);
+}
+
+/* Returns false if `t` is still in use and must not be freed. */
+static bool RTLSDR_TeardownTransport(RTLSDRTransport *t)
 {
     if (!t)
-        return;
+        return true;
 
-    /* End librtlsdr's async state as well, not just the USB stream:
-     * rtlsdr_close() below waits until async_status is INACTIVE and would
-     * hang forever if the dongle is unplugged while streaming. */
-    if (t->dev)
-        rtlsdr_cancel_async(t->dev);
-    /* checks the streaming flag itself, on the stream queue */
-    rtlsdr_usb_stream_stop(t);
-
-    /* rtlsdr_close() issues USB control transfers (deinit_baseband); the
-     * caller (Start failure path / Stop) already runs on the device queue. */
     if (t->dev) {
+        /* rtlsdr_close() waits until librtlsdr's async state is inactive. */
+        if (RTLSDR_IsStreaming(t))
+            RTLSDR_StopStream(t);
+        if (RTLSDR_IsStreaming(t)) {
+            /* The loop still uses the device, its transfers and `t`. */
+            os_log(OS_LOG_DEFAULT, "RTL_SDR: stream loop did not stop, leaving the device open");
+            return false;
+        }
+        /* rtlsdr_close() issues USB control transfers (deinit_baseband); the
+         * caller (Start failure path / Stop) already runs on the device queue. */
         rtlsdr_close(t->dev);
         t->dev = nullptr;
     }
 
-    /* Stop() has detached the transport (ivars->t == NULL) on the stream
-     * queue, so completions still in flight return in ReadComplete before
-     * touching their action. (On the Start failure path no stream ran.) */
-    RTLSDR_FreeStreamPool(t);
-    OSSafeReleaseNULL(t->ctrlBuffer);
+    if (t->usbAttached) {
+        libusb_driverkit_detach();
+        t->usbAttached = false;
+    }
     OSSafeReleaseNULL(t->iqRing);
-    OSSafeReleaseNULL(t->pipeIn);
 
     if (t->interface) {
         t->interface->Close(t->owner, 0);
@@ -711,6 +231,7 @@ static void RTLSDR_TeardownTransport(RTLSDRTransport *t)
     }
     OSSafeReleaseNULL(t->streamQueue);
     OSSafeReleaseNULL(t->deviceQueue);
+    return true;
 }
 
 /* ===========================================================================
@@ -771,26 +292,20 @@ IMPL(RTL_SDR, Start)
         goto fail;
     }
 
-    /* bulk-IN pipe carrying the IQ samples (endpoint address 0x81) */
-    ret = t->interface->CopyPipe(0x81, &t->pipeIn);
-    if (ret != kIOReturnSuccess || !t->pipeIn) {
-        os_log(OS_LOG_DEFAULT, "RTL_SDR: CopyPipe(0x81) failed: 0x%x", ret);
-        ret = kIOReturnNoDevice;
-        goto fail;
-    }
-
     /* Use this driver's own default dispatch queue for device control:
      * Start / Stop already run here, control commands hop on with
-     * DispatchSync, softagc gain changes with DispatchAsync. */
+     * DispatchSync. */
     ret = CopyDispatchQueue(kIOServiceDefaultQueueName, &t->deviceQueue);
     if (ret != kIOReturnSuccess || !t->deviceQueue) {
         os_log(OS_LOG_DEFAULT, "RTL_SDR: CopyDispatchQueue failed: 0x%x", ret);
         goto fail;
     }
 
-    /* Bulk-IN completions get their own queue (ReadComplete is declared
-     * QUEUENAME(Stream)); see "Threading model" at the top. */
-    ret = IODispatchQueue::Create("Stream", 0, 0, &t->streamQueue);
+    /* The libusb event loop and the bulk-IN completions (ReadComplete is
+     * declared QUEUENAME(Stream)) share this queue. It must be reentrant:
+     * the event loop sleeps on it while waiting for completions. */
+    ret = IODispatchQueue::Create("Stream", kIODispatchQueueReentrant, 0,
+                                  &t->streamQueue);
     if (ret != kIOReturnSuccess || !t->streamQueue) {
         os_log(OS_LOG_DEFAULT, "RTL_SDR: stream queue create failed: 0x%x", ret);
         goto fail;
@@ -799,19 +314,6 @@ IMPL(RTL_SDR, Start)
     if (ret != kIOReturnSuccess) {
         os_log(OS_LOG_DEFAULT, "RTL_SDR: SetDispatchQueue(Stream) failed: 0x%x", ret);
         goto fail;
-    }
-
-    /* reusable control-transfer buffer */
-    ret = t->interface->CreateIOBuffer(kIOMemoryDirectionInOut,
-                                       RTLSDR_CTRL_BUF_SIZE, &t->ctrlBuffer);
-    if (ret != kIOReturnSuccess || !t->ctrlBuffer) {
-        os_log(OS_LOG_DEFAULT, "RTL_SDR: ctrl buffer alloc failed: 0x%x", ret);
-        goto fail;
-    }
-    {
-        IOAddressSegment seg;
-        t->ctrlBuffer->GetAddressRange(&seg);
-        t->ctrlBytes = (uint8_t *)seg.address;
     }
 
     /* shared IQ ring buffer handed to the host app via the user client */
@@ -830,18 +332,28 @@ IMPL(RTL_SDR, Start)
         t->iqRingAddr->dataSize = RTLSDR_RING_DATA_SIZE;
     }
 
-    /* Open the librtlsdr device. We are already on the device queue, so this
-     * (and all the control transfers it performs) runs serialised. */
+    /* The interface becomes librtlsdr's one and only libusb device. */
+    ret = libusb_driverkit_attach(t->interface, t->streamQueue,
+                                  RTLSDR_CreateReadAction, this);
+    if (ret != kIOReturnSuccess) {
+        os_log(OS_LOG_DEFAULT, "RTL_SDR: libusb attach failed: 0x%x", ret);
+        goto fail;
+    }
+    t->usbAttached = true;
+
+    /* Open the librtlsdr device. We are on the device queue, so this (and all
+     * the control transfers it performs) runs serialised with the commands. */
     {
-        int r = rtlsdr_open_usb(&t->dev, t);
+        int r = rtlsdr_open(&t->dev, 0);
         if (r != 0 || !t->dev) {
-            os_log(OS_LOG_DEFAULT, "RTL_SDR: rtlsdr_open_usb failed: %d", r);
+            os_log(OS_LOG_DEFAULT, "RTL_SDR: rtlsdr_open failed: %d", r);
+            t->dev = nullptr;
             ret = kIOReturnError;
             goto fail;
         }
     }
 
-    rtlsdr_usb_get_strings(t, t->manufact, t->product, nullptr);
+    rtlsdr_get_usb_strings(t->dev, t->manufact, t->product, nullptr);
 
     RegisterService();
     os_log(OS_LOG_DEFAULT, "RTL_SDR: started, tuner type = %d, device = %{public}s / %{public}s",
@@ -849,9 +361,9 @@ IMPL(RTL_SDR, Start)
     return kIOReturnSuccess;
 
 fail:
-    RTLSDR_TeardownTransport(t);
-    IOFree(t, sizeof(RTLSDRTransport));
     ivars->t = nullptr;
+    if (RTLSDR_TeardownTransport(t))
+        IOFree(t, sizeof(RTLSDRTransport));
     Stop(provider, SUPERDISPATCH);
     return ret;
 }
@@ -863,13 +375,9 @@ IMPL(RTL_SDR, Stop)
 
     if (ivars && ivars->t) {
         RTLSDRTransport *t = ivars->t;
-        /* Detach on the stream queue first: a ReadComplete running there
-         * finishes before the transport goes away, later ones see NULL. */
-        RTLSDR_OnStreamQueue(t, ^{
-            ivars->t = nullptr;
-        });
-        RTLSDR_TeardownTransport(t);
-        IOFree(t, sizeof(RTLSDRTransport));
+        ivars->t = nullptr;
+        if (RTLSDR_TeardownTransport(t))
+            IOFree(t, sizeof(RTLSDRTransport));
     }
     return Stop(provider, SUPERDISPATCH);
 }
@@ -899,50 +407,14 @@ IMPL(RTL_SDR, NewUserClient)
 /* ===========================================================================
  * MARK: - Bulk-IN completion
  *
- * Runs on the stream queue, once per completed AsyncIO transfer. Forwards the
- * IQ samples to librtlsdr (softagc + dev->cb -> RTLSDR_iqSink) and resubmits
- * the same buffer.
+ * Runs on the stream queue, once per completed libusb transfer. The libusb
+ * shim queues it for the event loop in rtlsdr_read_async(), which calls
+ * librtlsdr's transfer callback (softagc + dev->cb -> RTLSDR_iqSink).
  * ======================================================================== */
 void
 IMPL(RTL_SDR, ReadComplete)
 {
-    RTLSDRTransport *t = (ivars ? ivars->t : nullptr);
-    if (!t)
-        return;
-
-    /* The stream state is only safe if QUEUENAME(Stream) took effect. */
-    if (!t->streamQueueLogged) {
-        t->streamQueueLogged = true;
-        os_log(OS_LOG_DEFAULT, "[rtlsdr] ReadComplete on stream queue: %{public}s",
-               t->streamQueue->OnQueue() ? "yes" : "NO");
-    }
-
-    uint32_t idx = (uint32_t)(*(uint64_t *)action->GetReference());
-    if (idx >= t->streamBufNum)
-        return;
-
-    /* A completion from before the current stream started (typically one
-     * aborted by the last stop) is stale: its data is dropped, but the
-     * buffer is handed back to the running stream. */
-    bool current = t->streaming && t->streamInFlight[idx] == t->streamGen;
-    t->streamInFlight[idx] = 0;
-
-    if (current && status == kIOReturnSuccess && actualByteCount > 0) {
-        if (t->streamCb)
-            t->streamCb(t->streamAddr[idx], actualByteCount, t->streamCtx);
-    }
-
-    if (t->streaming &&
-        (status != kIOReturnAborted || !current) &&
-        status != kIOReturnNotResponding &&
-        status != kIOReturnNoDevice) {
-        kern_return_t ret = t->pipeIn->AsyncIO(t->streamBuf[idx],
-                                               t->streamBufLen, action, 0);
-        if (ret == kIOReturnSuccess)
-            t->streamInFlight[idx] = t->streamGen;
-        else
-            os_log(OS_LOG_DEFAULT, "[rtlsdr] resubmit %u failed: 0x%x", idx, ret);
-    }
+    libusb_driverkit_complete(action, status, actualByteCount);
 }
 
 /* ===========================================================================
@@ -964,12 +436,11 @@ RTL_SDR::HandleScalarCommand(uint32_t selector, uint64_t arg, uint64_t *result)
         rtlsdr_dev_t *d = t->dev;
         switch (selector) {
         case kRTLSDRMethodStartStream:
-            r = rtlsdr_read_async(d, RTLSDR_iqSink, t,
-                                  RTLSDR_STREAM_BUF_NUM, RTLSDR_STREAM_BUF_LEN);
+            r = RTLSDR_StartStream(t);
             os_log(OS_LOG_DEFAULT, "[rtlsdr] StartStream returned %d", r);
             break;
         case kRTLSDRMethodStopStream:
-            r = rtlsdr_cancel_async(d);
+            r = RTLSDR_StopStream(t);
             os_log(OS_LOG_DEFAULT, "[rtlsdr] StopStream returned %d", r);
             break;
         case kRTLSDRMethodSetCenterFreq:
@@ -1063,7 +534,7 @@ RTL_SDR::FillDeviceInfo(void *infop)
     info->valid      = 1;
     info->tunerType  = (uint32_t)rtlsdr_get_tuner_type(t->dev);
     info->sampleRate = rtlsdr_get_sample_rate(t->dev);
-    info->streaming  = t->streaming ? 1u : 0u;
+    info->streaming  = RTLSDR_IsStreaming(t) ? 1u : 0u;
     /* both sides are NUL-terminated 256-byte buffers */
     memcpy(info->manufacturer, t->manufact, sizeof(info->manufacturer));
     memcpy(info->product, t->product, sizeof(info->product));

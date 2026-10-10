@@ -12,6 +12,15 @@
 		F8E413A42FC0F54D00BA74C0 /* USBDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E413A32FC0F54D00BA74C0 /* USBDriverKit.framework */; };
 		F8E413B22FC1E3C000BA74C0 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E413B12FC1E3C000BA74C0 /* IOKit.framework */; };
 		F8E413B62FC1EA5300BA74C0 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E413B52FC1EA5300BA74C0 /* Network.framework */; };
+		52DC4F578D21434FAC66E9C3 /* librtlsdr.c in Sources */ = {isa = PBXBuildFile; fileRef = 39238976AED94245A68E057D /* librtlsdr.c */; settings = {COMPILER_FLAGS = "-w -Xanalyzer -analyzer-disable-all-checks -fno-modules -DHAVE_LIBUSB_HANDLE_EVENTS_TIMEOUT_COMPLETED=1 -I\"$(SRCROOT)/Shim/include\""; }; };
+		DD2B0ECAA06D444E9BE7F027 /* tuner_e4k.c in Sources */ = {isa = PBXBuildFile; fileRef = 76DEBD1469F44300A00E2BA0 /* tuner_e4k.c */; settings = {COMPILER_FLAGS = "-w -Xanalyzer -analyzer-disable-all-checks -fno-modules -DHAVE_LIBUSB_HANDLE_EVENTS_TIMEOUT_COMPLETED=1 -I\"$(SRCROOT)/Shim/include\""; }; };
+		EE7F77E3EC154B46A41EF922 /* tuner_fc0012.c in Sources */ = {isa = PBXBuildFile; fileRef = 716173AC386A45B7A22B0786 /* tuner_fc0012.c */; settings = {COMPILER_FLAGS = "-w -Xanalyzer -analyzer-disable-all-checks -fno-modules -DHAVE_LIBUSB_HANDLE_EVENTS_TIMEOUT_COMPLETED=1 -I\"$(SRCROOT)/Shim/include\""; }; };
+		88B64CA98A6443DEA1D51CB0 /* tuner_fc0013.c in Sources */ = {isa = PBXBuildFile; fileRef = D2A7360B03084EB98F5DA9A2 /* tuner_fc0013.c */; settings = {COMPILER_FLAGS = "-w -Xanalyzer -analyzer-disable-all-checks -fno-modules -DHAVE_LIBUSB_HANDLE_EVENTS_TIMEOUT_COMPLETED=1 -I\"$(SRCROOT)/Shim/include\""; }; };
+		0D46FE9A9B734E68B760C6E2 /* tuner_fc2580.c in Sources */ = {isa = PBXBuildFile; fileRef = 17B0A884B6E3431E8C4EC9E7 /* tuner_fc2580.c */; settings = {COMPILER_FLAGS = "-w -Xanalyzer -analyzer-disable-all-checks -fno-modules -DHAVE_LIBUSB_HANDLE_EVENTS_TIMEOUT_COMPLETED=1 -I\"$(SRCROOT)/Shim/include\""; }; };
+		F771F320F78A4E1A88760CB0 /* tuner_r82xx.c in Sources */ = {isa = PBXBuildFile; fileRef = 6318C8B51F084725B51EA605 /* tuner_r82xx.c */; settings = {COMPILER_FLAGS = "-w -Xanalyzer -analyzer-disable-all-checks -fno-modules -DHAVE_LIBUSB_HANDLE_EVENTS_TIMEOUT_COMPLETED=1 -I\"$(SRCROOT)/Shim/include\""; }; };
+		A5FB9A306C5D439586101348 /* libc_driverkit.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FB11CB5B9D124FB1830729EC /* libc_driverkit.cpp */; };
+		5F85DE921A4B4758AD551D64 /* libusb_driverkit.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6BA28B0B550846FC824EBEB1 /* libusb_driverkit.cpp */; };
+		5FFFF592D5E546CBBA9691BE /* pthread_driverkit.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 34B0E4F6414F4990AC6C6C52 /* pthread_driverkit.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,6 +54,17 @@
 		F8E413A32FC0F54D00BA74C0 /* USBDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = USBDriverKit.framework; path = System/DriverKit/System/Library/Frameworks/USBDriverKit.framework; sourceTree = SDKROOT; };
 		F8E413B12FC1E3C000BA74C0 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/IOKit.framework; sourceTree = DEVELOPER_DIR; };
 		F8E413B52FC1EA5300BA74C0 /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/Network.framework; sourceTree = DEVELOPER_DIR; };
+		39238976AED94245A68E057D /* librtlsdr.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = librtlsdr.c; sourceTree = "<group>"; };
+		76DEBD1469F44300A00E2BA0 /* tuner_e4k.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tuner_e4k.c; sourceTree = "<group>"; };
+		716173AC386A45B7A22B0786 /* tuner_fc0012.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tuner_fc0012.c; sourceTree = "<group>"; };
+		D2A7360B03084EB98F5DA9A2 /* tuner_fc0013.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tuner_fc0013.c; sourceTree = "<group>"; };
+		17B0A884B6E3431E8C4EC9E7 /* tuner_fc2580.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tuner_fc2580.c; sourceTree = "<group>"; };
+		6318C8B51F084725B51EA605 /* tuner_r82xx.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tuner_r82xx.c; sourceTree = "<group>"; };
+		FB11CB5B9D124FB1830729EC /* libc_driverkit.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = libc_driverkit.cpp; sourceTree = "<group>"; };
+		6BA28B0B550846FC824EBEB1 /* libusb_driverkit.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = libusb_driverkit.cpp; sourceTree = "<group>"; };
+		34B0E4F6414F4990AC6C6C52 /* pthread_driverkit.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = pthread_driverkit.cpp; sourceTree = "<group>"; };
+		34F44C11FEC0452DB5FC1056 /* libusb_driverkit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = libusb_driverkit.h; sourceTree = "<group>"; };
+		CCAC8BFACBF94EFB85189D60 /* include */ = {isa = PBXFileReference; lastKnownFileType = folder; path = include; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -120,6 +140,8 @@
 			children = (
 				F8E4131E2FBC3EE400BA74C0 /* RTL-SDR */,
 				F8E413302FBDDA5E00BA74C0 /* RTL-SDR Host */,
+				CC2A53D8A1DB437A9AFEDA04 /* Shim */,
+				CF502128CD0E46589E0BE02D /* librtlsdr */,
 				F8E4131B2FBC3EE400BA74C0 /* Frameworks */,
 				F8E4131A2FBC3EE400BA74C0 /* Products */,
 			);
@@ -143,6 +165,32 @@
 				F8E4131C2FBC3EE400BA74C0 /* DriverKit.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		CF502128CD0E46589E0BE02D /* librtlsdr */ = {
+			isa = PBXGroup;
+			children = (
+				39238976AED94245A68E057D /* librtlsdr.c */,
+				76DEBD1469F44300A00E2BA0 /* tuner_e4k.c */,
+				716173AC386A45B7A22B0786 /* tuner_fc0012.c */,
+				D2A7360B03084EB98F5DA9A2 /* tuner_fc0013.c */,
+				17B0A884B6E3431E8C4EC9E7 /* tuner_fc2580.c */,
+				6318C8B51F084725B51EA605 /* tuner_r82xx.c */,
+			);
+			name = librtlsdr;
+			path = third_party/librtlsdr/src;
+			sourceTree = "<group>";
+		};
+		CC2A53D8A1DB437A9AFEDA04 /* Shim */ = {
+			isa = PBXGroup;
+			children = (
+				CCAC8BFACBF94EFB85189D60 /* include */,
+				FB11CB5B9D124FB1830729EC /* libc_driverkit.cpp */,
+				6BA28B0B550846FC824EBEB1 /* libusb_driverkit.cpp */,
+				34F44C11FEC0452DB5FC1056 /* libusb_driverkit.h */,
+				34B0E4F6414F4990AC6C6C52 /* pthread_driverkit.cpp */,
+			);
+			path = Shim;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -265,6 +313,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				52DC4F578D21434FAC66E9C3 /* librtlsdr.c in Sources */,
+				DD2B0ECAA06D444E9BE7F027 /* tuner_e4k.c in Sources */,
+				EE7F77E3EC154B46A41EF922 /* tuner_fc0012.c in Sources */,
+				88B64CA98A6443DEA1D51CB0 /* tuner_fc0013.c in Sources */,
+				0D46FE9A9B734E68B760C6E2 /* tuner_fc2580.c in Sources */,
+				F771F320F78A4E1A88760CB0 /* tuner_r82xx.c in Sources */,
+				A5FB9A306C5D439586101348 /* libc_driverkit.cpp in Sources */,
+				5F85DE921A4B4758AD551D64 /* libusb_driverkit.cpp in Sources */,
+				5FFFF592D5E546CBBA9691BE /* pthread_driverkit.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -291,13 +348,21 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "RTL-SDR/RTL-SDR.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SDKROOT)/System/DriverKit/System/Library/Frameworks",
 				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					rtlsdr_STATIC,
+				);
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Shim",
+				);
 				INFOPLIST_FILE = "RTL-SDR/Info.plist";
 				INFOPLIST_KEY_OSBundleUsageDescription = "Used for communicating with RTL-SDR";
 				MARKETING_VERSION = 1.0;
@@ -307,6 +372,10 @@
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SYSTEM_HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/third_party/librtlsdr/include",
+				);
 			};
 			name = Debug;
 		};
@@ -315,13 +384,21 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "RTL-SDR/RTL-SDR.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SDKROOT)/System/DriverKit/System/Library/Frameworks",
 				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					rtlsdr_STATIC,
+				);
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Shim",
+				);
 				INFOPLIST_FILE = "RTL-SDR/Info.plist";
 				INFOPLIST_KEY_OSBundleUsageDescription = "Used for communicating with RTL-SDR";
 				MARKETING_VERSION = 1.0;
@@ -331,6 +408,10 @@
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SYSTEM_HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/third_party/librtlsdr/include",
+				);
 			};
 			name = Release;
 		};
@@ -458,7 +539,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "RTL-SDR Host/RTL-SDR Host.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
@@ -503,7 +584,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "RTL-SDR Host/RTL-SDR Host.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
