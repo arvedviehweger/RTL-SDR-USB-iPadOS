@@ -75,9 +75,12 @@ struct RTLSDRTransport {
     bool                      streaming;
     uint32_t                  streamBufNum;
     uint32_t                  streamBufLen;
+    uint32_t                  streamGen;    /* bumped on every stream start    */
     IOBufferMemoryDescriptor *streamBuf[RTLSDR_MAX_XFER];
     OSAction                 *streamAct[RTLSDR_MAX_XFER];
     uint8_t                  *streamAddr[RTLSDR_MAX_XFER];
+    /* streamGen of the transfer in flight on this buffer, 0 == idle */
+    uint32_t                  streamInFlight[RTLSDR_MAX_XFER];
     rtlsdr_usb_stream_cb_t    streamCb;
     void                     *streamCtx;
 };
@@ -427,6 +430,29 @@ extern "C" int rtlsdr_usb_get_strings(rtlsdr_usb_t usb,
     return 0;
 }
 
+/* Releases the streaming buffers and their completion actions. Only safe
+ * while no completion is pending: ReadComplete dereferences the action. */
+static void RTLSDR_FreeStreamPool(RTLSDRTransport *t)
+{
+    for (uint32_t i = 0; i < RTLSDR_MAX_XFER; ++i) {
+        OSSafeReleaseNULL(t->streamAct[i]);
+        OSSafeReleaseNULL(t->streamBuf[i]);
+        t->streamAddr[i] = nullptr;
+        t->streamInFlight[i] = 0;
+    }
+    t->streamBufNum = 0;
+    t->streamBufLen = 0;
+}
+
+static uint32_t RTLSDR_StreamInFlight(const RTLSDRTransport *t)
+{
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < t->streamBufNum; ++i)
+        if (t->streamInFlight[i])
+            ++n;
+    return n;
+}
+
 extern "C" int rtlsdr_usb_stream_start(rtlsdr_usb_t usb,
                                        uint32_t buf_num,
                                        uint32_t buf_len,
@@ -442,50 +468,77 @@ extern "C" int rtlsdr_usb_stream_start(rtlsdr_usb_t usb,
         os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start refused: already streaming");
         return -2;
     }
-    if (t->streamBufNum != 0 || t->streamCb || t->streamCtx) {
-        os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start cleaning stale resources");
-        rtlsdr_usb_stream_stop(usb);
-    }
     if (buf_num == 0 || buf_num > RTLSDR_MAX_XFER)
         buf_num = RTLSDR_MAX_XFER;
 
-    t->streamBufNum = buf_num;
-    t->streamBufLen = buf_len;
-    t->streamCb     = cb;
-    t->streamCtx    = ctx;
-    t->streaming    = true;
-
-    /* allocate buffers and one completion action per buffer */
-    for (uint32_t i = 0; i < buf_num; ++i) {
-        kern_return_t ret = t->interface->CreateIOBuffer(kIOMemoryDirectionIn,
-                                                         buf_len, &t->streamBuf[i]);
-        if (ret != kIOReturnSuccess || !t->streamBuf[i]) {
-            os_log(OS_LOG_DEFAULT, "[rtlsdr] stream buffer %u alloc failed: 0x%x", i, ret);
-            t->streaming = false;
-            rtlsdr_usb_stream_stop(usb);
-            return -1;
+    /* The buffer pool survives a stop and is reused (see
+     * rtlsdr_usb_stream_stop). It can only be rebuilt with a different
+     * geometry once every completion of the previous stream has arrived. */
+    if (t->streamBufNum &&
+        (t->streamBufNum != buf_num || t->streamBufLen != buf_len)) {
+        uint32_t inFlight = RTLSDR_StreamInFlight(t);
+        if (inFlight) {
+            os_log(OS_LOG_DEFAULT, "[rtlsdr] stream start refused: %u transfers pending",
+                   inFlight);
+            return -2;
         }
-        IOAddressSegment seg;
-        t->streamBuf[i]->GetAddressRange(&seg);
-        t->streamAddr[i] = (uint8_t *)seg.address;
-
-        ret = t->owner->CreateActionReadComplete(sizeof(uint64_t), &t->streamAct[i]);
-        if (ret != kIOReturnSuccess || !t->streamAct[i]) {
-            os_log(OS_LOG_DEFAULT, "[rtlsdr] stream action %u alloc failed: 0x%x", i, ret);
-            t->streaming = false;
-            rtlsdr_usb_stream_stop(usb);
-            return -1;
-        }
-        /* stash the buffer index in the action's reference memory */
-        *(uint64_t *)t->streamAct[i]->GetReference() = (uint64_t)i;
+        RTLSDR_FreeStreamPool(t);
     }
 
-    /* submit them all - completion timeout 0 == stream continuously */
+    /* allocate buffers and one completion action per buffer */
+    if (!t->streamBufNum) {
+        for (uint32_t i = 0; i < buf_num; ++i) {
+            kern_return_t ret = t->interface->CreateIOBuffer(kIOMemoryDirectionIn,
+                                                             buf_len, &t->streamBuf[i]);
+            if (ret != kIOReturnSuccess || !t->streamBuf[i]) {
+                os_log(OS_LOG_DEFAULT, "[rtlsdr] stream buffer %u alloc failed: 0x%x", i, ret);
+                RTLSDR_FreeStreamPool(t);
+                return -1;
+            }
+            IOAddressSegment seg;
+            t->streamBuf[i]->GetAddressRange(&seg);
+            t->streamAddr[i] = (uint8_t *)seg.address;
+
+            ret = t->owner->CreateActionReadComplete(sizeof(uint64_t), &t->streamAct[i]);
+            if (ret != kIOReturnSuccess || !t->streamAct[i]) {
+                os_log(OS_LOG_DEFAULT, "[rtlsdr] stream action %u alloc failed: 0x%x", i, ret);
+                RTLSDR_FreeStreamPool(t);
+                return -1;
+            }
+            /* stash the buffer index in the action's reference memory */
+            *(uint64_t *)t->streamAct[i]->GetReference() = (uint64_t)i;
+        }
+        t->streamBufNum = buf_num;
+        t->streamBufLen = buf_len;
+    }
+
+    if (++t->streamGen == 0)
+        t->streamGen = 1;                   /* 0 means "idle" */
+    t->streamCb  = cb;
+    t->streamCtx = ctx;
+    t->streaming = true;
+
+    /* submit them all - completion timeout 0 == stream continuously.
+     * A buffer whose completion from the previous stream has not arrived
+     * yet is skipped; ReadComplete resubmits it once that completion is in. */
+    uint32_t submitted = 0;
     for (uint32_t i = 0; i < buf_num; ++i) {
+        if (t->streamInFlight[i])
+            continue;
         kern_return_t ret = t->pipeIn->AsyncIO(t->streamBuf[i], buf_len,
                                                t->streamAct[i], 0);
-        if (ret != kIOReturnSuccess)
+        if (ret == kIOReturnSuccess) {
+            t->streamInFlight[i] = t->streamGen;
+            ++submitted;
+        } else {
             os_log(OS_LOG_DEFAULT, "[rtlsdr] AsyncIO submit %u failed: 0x%x", i, ret);
+        }
+    }
+    if (!submitted && !RTLSDR_StreamInFlight(t)) {
+        t->streaming = false;
+        t->streamCb  = nullptr;
+        t->streamCtx = nullptr;
+        return -1;
     }
     os_log(OS_LOG_DEFAULT, "[rtlsdr] streaming started: %u x %u bytes", buf_num, buf_len);
     return 0;
@@ -501,20 +554,18 @@ extern "C" int rtlsdr_usb_stream_stop(rtlsdr_usb_t usb)
     t->streaming = false;
 
     /* VERIFY: IOUSBHostPipe::Abort(options, withError, forAction).
-     * Use the synchronous option so that all in-flight transfers have
-     * completed (and ReadComplete has run) by the time Abort returns. */
+     * We run on the device queue, which is also where ReadComplete is
+     * delivered, so the aborted completions only arrive after we return.
+     * The buffers and actions must stay alive until then - releasing them
+     * here crashed the dext in ReadComplete (OSAction::GetReference). They
+     * are reused by the next start and released in the transport teardown. */
     if (wasStreaming && t->pipeIn)
         t->pipeIn->Abort(kIOUSBAbortSynchronous, kIOReturnAborted, nullptr);
 
-    for (uint32_t i = 0; i < t->streamBufNum; ++i) {
-        OSSafeReleaseNULL(t->streamAct[i]);
-        OSSafeReleaseNULL(t->streamBuf[i]);
-        t->streamAddr[i] = nullptr;
-    }
-    t->streamBufNum = 0;
-    t->streamCb     = nullptr;
-    t->streamCtx    = nullptr;
-    os_log(OS_LOG_DEFAULT, "[rtlsdr] streaming stopped");
+    t->streamCb  = nullptr;
+    t->streamCtx = nullptr;
+    os_log(OS_LOG_DEFAULT, "[rtlsdr] streaming stopped (%u transfers pending)",
+           RTLSDR_StreamInFlight(t));
     return 0;
 }
 
@@ -548,10 +599,9 @@ static void RTLSDR_TeardownTransport(RTLSDRTransport *t)
         t->dev = nullptr;
     }
 
-    for (uint32_t i = 0; i < RTLSDR_MAX_XFER; ++i) {
-        OSSafeReleaseNULL(t->streamAct[i]);
-        OSSafeReleaseNULL(t->streamBuf[i]);
-    }
+    /* Completions still in flight find ivars->t == NULL in ReadComplete and
+     * return before touching their action. */
+    RTLSDR_FreeStreamPool(t);
     OSSafeReleaseNULL(t->ctrlBuffer);
     OSSafeReleaseNULL(t->iqRing);
     OSSafeReleaseNULL(t->pipeIn);
@@ -744,18 +794,26 @@ IMPL(RTL_SDR, ReadComplete)
     if (idx >= t->streamBufNum)
         return;
 
-    if (t->streaming && status == kIOReturnSuccess && actualByteCount > 0) {
+    /* A completion from before the current stream started (typically one
+     * aborted by the last stop) is stale: its data is dropped, but the
+     * buffer is handed back to the running stream. */
+    bool current = t->streaming && t->streamInFlight[idx] == t->streamGen;
+    t->streamInFlight[idx] = 0;
+
+    if (current && status == kIOReturnSuccess && actualByteCount > 0) {
         if (t->streamCb)
             t->streamCb(t->streamAddr[idx], actualByteCount, t->streamCtx);
     }
 
     if (t->streaming &&
-        status != kIOReturnAborted &&
+        (status != kIOReturnAborted || !current) &&
         status != kIOReturnNotResponding &&
         status != kIOReturnNoDevice) {
         kern_return_t ret = t->pipeIn->AsyncIO(t->streamBuf[idx],
                                                t->streamBufLen, action, 0);
-        if (ret != kIOReturnSuccess)
+        if (ret == kIOReturnSuccess)
+            t->streamInFlight[idx] = t->streamGen;
+        else
             os_log(OS_LOG_DEFAULT, "[rtlsdr] resubmit %u failed: 0x%x", idx, ret);
     }
 }
