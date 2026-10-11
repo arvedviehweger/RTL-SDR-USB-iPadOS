@@ -26,6 +26,11 @@ final class RTLSDRClient {
 
     var isOpen: Bool { connection != 0 }
 
+    /// True while the dext's RTL_SDR service exists. It is missing both when
+    /// no RTL-SDR is plugged in and when the driver is disabled in Settings;
+    /// iPadOS offers no way to tell these apart.
+    static var isServicePresent: Bool { rtlsdrhost_service_present() != 0 }
+
     // MARK: - Connection
 
     @discardableResult
@@ -201,6 +206,7 @@ final class RTLSDRClient {
         guard open() else {
             log("✗ Could not connect to the RTL_SDR user client.")
             log("  → Is the RTL-SDR plugged in?")
+            log("  → Is the driver enabled in Settings › Apps › RTL-SDR-Host?")
             return
         }
         log("✓ User client connection open.")

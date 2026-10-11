@@ -7,13 +7,69 @@
 
 #include "RTLSDRBridge.h"
 
+#include <Block.h>
 #include <IOKit/IOKitLib.h>
+#include <dispatch/dispatch.h>
 #include <mach/mach.h>
 
 //  The DriverKit service is registered under its IOUserClass name. The matching
 //  is exact, so this does not also pick up "RTL_SDR_DEV" (the device-level
 //  driver) - we want the interface driver that owns the user client.
 static const char *kRTLSDRServiceName = "RTL_SDR";
+
+int rtlsdrhost_service_present(void)
+{
+    io_service_t service = IOServiceGetMatchingService(
+        0, IOServiceNameMatching(kRTLSDRServiceName));
+    if (service == IO_OBJECT_NULL)
+        return 0;
+    IOObjectRelease(service);
+    return 1;
+}
+
+//  Service notifications, delivered on the main queue.
+static IONotificationPortRef gNotifyPort;
+static io_iterator_t         gMatchedIterator;
+static io_iterator_t         gTerminatedIterator;
+static void                (^gServiceHandler)(void);
+
+//  The iterators must be drained to re-arm the notification.
+static void rtlsdrhost_service_changed(void *refcon, io_iterator_t iterator)
+{
+    (void)refcon;
+    io_service_t service;
+    while ((service = IOIteratorNext(iterator)) != IO_OBJECT_NULL)
+        IOObjectRelease(service);
+    if (gServiceHandler)
+        gServiceHandler();
+}
+
+int rtlsdrhost_watch_service(void (^handler)(void))
+{
+    if (gNotifyPort)
+        return 0;
+
+    gNotifyPort = IONotificationPortCreate(0);
+    if (!gNotifyPort)
+        return -1;
+    IONotificationPortSetDispatchQueue(gNotifyPort, dispatch_get_main_queue());
+    gServiceHandler = Block_copy(handler);
+
+    //  Each call consumes its matching dictionary.
+    kern_return_t kr = IOServiceAddMatchingNotification(
+        gNotifyPort, kIOMatchedNotification, IOServiceNameMatching(kRTLSDRServiceName),
+        rtlsdrhost_service_changed, NULL, &gMatchedIterator);
+    if (kr == KERN_SUCCESS)
+        rtlsdrhost_service_changed(NULL, gMatchedIterator);
+
+    kern_return_t kr2 = IOServiceAddMatchingNotification(
+        gNotifyPort, kIOTerminatedNotification, IOServiceNameMatching(kRTLSDRServiceName),
+        rtlsdrhost_service_changed, NULL, &gTerminatedIterator);
+    if (kr2 == KERN_SUCCESS)
+        rtlsdrhost_service_changed(NULL, gTerminatedIterator);
+
+    return (kr == KERN_SUCCESS && kr2 == KERN_SUCCESS) ? 0 : -1;
+}
 
 uint32_t rtlsdrhost_open(void)
 {

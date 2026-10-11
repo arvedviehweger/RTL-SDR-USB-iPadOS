@@ -107,7 +107,7 @@ final class RTLTCPServer {
         self.port = port
 
         guard client.open() else {
-            emit("✗ RTL-SDR user client unreachable — is the dext active? Is the device plugged in?")
+            emit("✗ RTL-SDR user client unreachable — is the device plugged in? Is the driver enabled in Settings › Apps › RTL-SDR-Host?")
             return
         }
         guard client.mapRing() else {

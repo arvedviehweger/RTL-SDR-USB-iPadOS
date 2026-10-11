@@ -21,9 +21,12 @@ class ViewController: UIViewController {
     private lazy var server = RTLTCPServer(client: client)
     private let keeper = BackgroundAudioKeeper()
 
-    private let logView      = UITextView()
-    private let testButton   = UIButton(type: .system)
-    private let serverButton = UIButton(type: .system)
+    private let hintView       = UIView()
+    private let hintLabel      = UILabel()
+    private let settingsButton = UIButton(type: .system)
+    private let logView        = UITextView()
+    private let testButton     = UIButton(type: .system)
+    private let serverButton   = UIButton(type: .system)
 
     private var serverRunning = false
 
@@ -42,6 +45,17 @@ class ViewController: UIViewController {
         view.backgroundColor = .systemBackground
         setupUI()
         wireServer()
+        updateDriverHint()
+
+        // Plugging in or unplugging the RTL-SDR updates the hint right away.
+        rtlsdrhost_watch_service { [weak self] in
+            MainActor.assumeIsolated { self?.driverServiceChanged() }
+        }
+
+        // Coming back from Settings, the driver may have been switched on.
+        NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive),
+                                               name: UIApplication.didBecomeActiveNotification,
+                                               object: nil)
 
         print("RTL-SDR Host started")
         print("Bundled driver extension identifier: \(driverExtensionIdentifier)")
@@ -56,13 +70,20 @@ class ViewController: UIViewController {
     // MARK: - UI
 
     private func setupUI() {
-        logView.translatesAutoresizingMaskIntoConstraints = false
+        setupHint()
+
         logView.isEditable = false
         logView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         logView.backgroundColor = .secondarySystemBackground
         logView.layer.cornerRadius = 10
         logView.textContainerInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
-        view.addSubview(logView)
+
+        // The hint sits above the log and takes no space while hidden.
+        let content = UIStackView(arrangedSubviews: [hintView, logView])
+        content.translatesAutoresizingMaskIntoConstraints = false
+        content.axis = .vertical
+        content.spacing = 12
+        view.addSubview(content)
 
         styleButton(testButton,   title: "Test connection", color: .systemBlue)
         testButton.addTarget(self, action: #selector(runTest), for: .touchUpInside)
@@ -74,11 +95,11 @@ class ViewController: UIViewController {
 
         let guide = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
-            logView.topAnchor.constraint(equalTo: guide.topAnchor, constant: 16),
-            logView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
-            logView.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
+            content.topAnchor.constraint(equalTo: guide.topAnchor, constant: 16),
+            content.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
+            content.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
 
-            serverButton.topAnchor.constraint(equalTo: logView.bottomAnchor, constant: 16),
+            serverButton.topAnchor.constraint(equalTo: content.bottomAnchor, constant: 16),
             serverButton.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
             serverButton.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
             serverButton.heightAnchor.constraint(equalToConstant: 54),
@@ -89,6 +110,50 @@ class ViewController: UIViewController {
             testButton.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -16),
             testButton.heightAnchor.constraint(equalToConstant: 54),
         ])
+    }
+
+    private func setupHint() {
+        hintView.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.15)
+        hintView.layer.cornerRadius = 10
+        hintView.isHidden = true
+
+        hintLabel.numberOfLines = 0
+        hintLabel.font = .systemFont(ofSize: 15)
+        hintLabel.text = "No RTL-SDR found. Plug it in and make sure its driver is enabled in Settings › Apps › RTL-SDR-Host."
+
+        settingsButton.setTitle("Open Settings", for: .normal)
+        settingsButton.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
+        settingsButton.setContentHuggingPriority(.required, for: .horizontal)
+        settingsButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        settingsButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+
+        let row = UIStackView(arrangedSubviews: [hintLabel, settingsButton])
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.axis = .horizontal
+        row.alignment = .center
+        row.spacing = 12
+        hintView.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.topAnchor.constraint(equalTo: hintView.topAnchor, constant: 12),
+            row.bottomAnchor.constraint(equalTo: hintView.bottomAnchor, constant: -12),
+            row.leadingAnchor.constraint(equalTo: hintView.leadingAnchor, constant: 16),
+            row.trailingAnchor.constraint(equalTo: hintView.trailingAnchor, constant: -16),
+        ])
+    }
+
+    /// Shows the hint while the dext's service is missing: no RTL-SDR plugged
+    /// in, or its driver disabled in Settings.
+    private func updateDriverHint() {
+        hintView.isHidden = RTLSDRClient.isServicePresent
+    }
+
+    /// The RTL_SDR service appeared or went away. Checks once more a moment
+    /// later, in case a service that is shutting down is still listed.
+    private func driverServiceChanged() {
+        updateDriverHint()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            self?.updateDriverHint()
+        }
     }
 
     private func styleButton(_ button: UIButton, title: String, color: UIColor) {
@@ -145,6 +210,7 @@ class ViewController: UIViewController {
                 self.serverButton.isEnabled = true
                 self.testButton.alpha = 1.0
                 self.serverButton.alpha = 1.0
+                self.updateDriverHint()
             }
         }
     }
@@ -156,7 +222,17 @@ class ViewController: UIViewController {
             appendLog("")
             appendLog("──────── rtl_tcp server ────────")
             server.start(port: 1234)
+            updateDriverHint()
         }
+    }
+
+    @objc private func openSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    @objc private func appDidBecomeActive() {
+        updateDriverHint()
     }
 
     // MARK: - Log

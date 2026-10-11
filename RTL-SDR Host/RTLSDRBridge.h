@@ -19,6 +19,15 @@
 extern "C" {
 #endif
 
+/// Returns 1 if the RTL_SDR service exists - an RTL-SDR is plugged in and
+/// its driver is enabled in Settings - and 0 otherwise.
+int rtlsdrhost_service_present(void);
+
+/// Calls `handler` on the main queue whenever an RTL_SDR service appears or
+/// goes away, e.g. when the RTL-SDR is plugged in or unplugged. Installs the
+/// IOKit notifications once; later calls do nothing. Returns 0 on success.
+int rtlsdrhost_watch_service(void (^handler)(void));
+
 /// Finds the RTL_SDR service and opens a user-client connection to it.
 /// Returns a non-zero connection handle on success, 0 on failure.
 uint32_t rtlsdrhost_open(void);
