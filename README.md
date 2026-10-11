@@ -244,8 +244,15 @@ tuners do not support it. Same behaviour as upstream `rtl_tcp`.
 
 ## License
 
-Copyright © 2026 Arved Viehweger. The code in this repository is distributed
-under the terms in `LICENSE`.
+Copyright 2026 Arved Viehweger.
+
+Licensed under the **Apache License, Version 2.0** (`LICENSE`). Whoever
+passes the code on, modified or not, has to include the license and the
+attribution notices in `NOTICE`.
+
+Exception: `RTLSDRShared.h`, the API between the driver extension and apps,
+is under the **MIT License** (text in the file), so that apps talking to the
+driver can include it freely.
 
 Third-party code in the driver extension:
 
