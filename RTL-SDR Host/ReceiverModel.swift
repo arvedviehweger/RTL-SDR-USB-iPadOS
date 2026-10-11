@@ -68,6 +68,8 @@ final class ReceiverModel {
     private(set) var favorites: [UInt32]
     private(set) var signalQuality = 0.0
     private(set) var isStereo = false
+    /// The latest reception report, for the details popover.
+    private(set) var reception: FMReceiver.Reception?
     /// RDS station name and radio text of the station playing.
     private(set) var stationName: String?
     private(set) var radioText: String?
@@ -85,6 +87,25 @@ final class ReceiverModel {
             fm.setStereo(stereoEnabled)
         }
     }
+    /// Tuner gain: automatic, or `manualGain` dB.
+    var automaticGain: Bool {
+        didSet {
+            UserDefaults.standard.set(automaticGain, forKey: Keys.automaticGain)
+            fm.setGain(tunerGain)
+        }
+    }
+    var manualGain: Double {
+        didSet {
+            UserDefaults.standard.set(manualGain, forKey: Keys.manualGain)
+            fm.setGain(tunerGain)
+        }
+    }
+
+    /// In tenths of a dB as the driver takes it, nil for automatic.
+    private var tunerGain: Int? {
+        automaticGain ? nil : Int((manualGain * 10).rounded())
+    }
+
     // rtl_tcp server
     private(set) var serverState: ServerState = .stopped
     private(set) var serverError: String?
@@ -118,6 +139,8 @@ final class ReceiverModel {
         static let favorites = "radio.favorites"
         static let deemphasis = "radio.deemphasis"
         static let stereo = "radio.stereo"
+        static let automaticGain = "radio.gain.automatic"
+        static let manualGain = "radio.gain"
         static let names = "radio.names"
     }
 
@@ -131,6 +154,8 @@ final class ReceiverModel {
         deemphasis = defaults.string(forKey: Keys.deemphasis).flatMap(Deemphasis.init)
             ?? .forCurrentRegion
         stereoEnabled = defaults.object(forKey: Keys.stereo) as? Bool ?? true
+        automaticGain = defaults.object(forKey: Keys.automaticGain) as? Bool ?? true
+        manualGain = defaults.object(forKey: Keys.manualGain) as? Double ?? 30
         stationNames = (defaults.dictionary(forKey: Keys.names) as? [String: String] ?? [:])
             .reduce(into: [:]) { names, entry in
                 if let hz = UInt32(entry.key) { names[hz] = entry.value }
@@ -201,7 +226,7 @@ final class ReceiverModel {
         }
         activity = .radio
         radioState = .starting
-        fm.start(frequency: frequency, deemphasis: deemphasis.tau, stereo: stereoEnabled)
+        fm.start(frequency: frequency, gain: tunerGain, deemphasis: deemphasis.tau, stereo: stereoEnabled)
         showsNowPlaying = true
         updateNowPlaying()
     }
@@ -225,6 +250,7 @@ final class ReceiverModel {
         stationName = nil
         radioText = nil
         isStereo = false
+        reception = nil
         UserDefaults.standard.set(Int(f), forKey: Keys.frequency)
         if activity == .radio { fm.tune(f) }
         updateNowPlaying()
@@ -275,12 +301,14 @@ final class ReceiverModel {
             radioState = .stopped
             signalQuality = 0
             isStereo = false
-                if activity == .radio { activity = .idle }
+            reception = nil
+            if activity == .radio { activity = .idle }
             updateNowPlaying()
             refreshDevice()
         case .reception(let reception):
             // Reports from before a retune describe the previous station.
             guard reception.frequency == frequency, radioState == .playing else { return }
+            self.reception = reception
             signalQuality = reception.quality
             isStereo = reception.isStereo
             let text = reception.radioText.map { Format.radioText($0) }

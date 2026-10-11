@@ -89,6 +89,7 @@ nonisolated final class FMDemodulator {
     private var subcarrier: [Float] = []
     private var difference: [Float] = []
     private var power: [Float] = []
+    private var clipped: [Float] = []
     private var resampledSum: [Float] = []
     private var resampledDifference: [Float] = []
     private var sum48: [Float] = []
@@ -106,6 +107,11 @@ nonisolated final class FMDemodulator {
     /// E|x|² and E|x|⁴ of the channel, smoothed over about half a second.
     private var moments: (m2: Double, m4: Double)?
 
+    /// Level at the 8-bit converter in dBFS, and the share of samples it
+    /// clips, both smoothed over about half a second.
+    private(set) var inputLevel: Double?
+    private(set) var clipping = 0.0
+
     init(deemphasis: Double = 50e-6) {
         setDeemphasis(deemphasis)
     }
@@ -122,6 +128,8 @@ nonisolated final class FMDemodulator {
         oddByte = []
         lastI = 0
         lastQ = 0
+        inputLevel = nil
+        clipping = 0
         left = OutputFilter()
         right = OutputFilter()
         stationChanged()
@@ -155,6 +163,8 @@ nonisolated final class FMDemodulator {
 
     /// True while the audio is (mostly) stereo.
     var isStereo: Bool { separation > 0.5 }
+
+    var isPilotLocked: Bool { pilot.isLocked }
 
     /// Demodulates a block of interleaved 8-bit IQ bytes and appends the
     /// audio as interleaved left / right samples to `audio`. `ratio`
@@ -228,6 +238,24 @@ nonisolated final class FMDemodulator {
                 vDSP_vsmsa(x.baseAddress!, 1, &scale, &offset, x.baseAddress!, 1, vDSP_Length(n))
             }
         }
+        measureInput(n)
+    }
+
+    /// Converter level and clipping: bytes 0 and 255 are ±1.
+    private func measureInput(_ n: Int) {
+        let level = 10 * log10(Double(max(vDSP.meanSquare(i960) + vDSP.meanSquare(q960), 1e-12)))
+        var low: Float = -0.999, high: Float = 0.999
+        var total: vDSP_Length = 0
+        FMDemodulator.resize(&clipped, to: n)
+        for buffer in [i960, q960] {
+            var below: vDSP_Length = 0, above: vDSP_Length = 0
+            vDSP_vclipc(buffer, 1, &low, &high, &clipped, 1, vDSP_Length(n), &below, &above)
+            total += below + above
+        }
+        let share = Double(total) / Double(2 * n)
+        let alpha = 1 - exp(-Double(n) / (0.5 * Double(FMDemodulator.inputRate)))
+        inputLevel = inputLevel.map { $0 + alpha * (level - $0) } ?? level
+        clipping += alpha * (share - clipping)
     }
 
     /// Shift by +fs/4, channel filter and ÷4 in one complex FIR.

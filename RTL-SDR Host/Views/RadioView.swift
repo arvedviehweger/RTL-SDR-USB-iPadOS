@@ -119,6 +119,7 @@ private struct StepButtonStyle: ViewModifier {
 private struct StationDisplay: View {
 
     @Environment(ReceiverModel.self) private var model
+    @State private var showsDetails = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -146,16 +147,27 @@ private struct StationDisplay: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Format.station(model.frequency))
 
-            HStack(spacing: 8) {
-                Image(systemName: "cellularbars", variableValue: playing ? model.signalQuality : 0)
-                    .foregroundStyle(playing ? .primary : .tertiary)
-                    .accessibilityLabel("Reception")
-                    .accessibilityValue(model.signalQuality.formatted(.percent.precision(.fractionLength(0))))
-                    .accessibilityHidden(!playing)
-                Text(status)
-                    .foregroundStyle(.secondary)
+            Button {
+                showsDetails.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "cellularbars", variableValue: playing ? model.signalQuality : 0)
+                        .foregroundStyle(playing ? .primary : .tertiary)
+                        .accessibilityLabel("Reception")
+                        .accessibilityValue(model.signalQuality.formatted(.percent.precision(.fractionLength(0))))
+                        .accessibilityHidden(!playing)
+                    Text(status)
+                        .foregroundStyle(.secondary)
+                }
+                .font(.headline)
             }
-            .font(.headline)
+            .buttonStyle(.plain)
+            .disabled(!playing)
+            .accessibilityHint("Shows reception details")
+            .popover(isPresented: $showsDetails) {
+                ReceptionDetails()
+                    .presentationCompactAdaptation(.popover)
+            }
 
             Text(model.radioText ?? " ")
                 .font(.callout)
@@ -174,6 +186,76 @@ private struct StationDisplay: View {
         case .starting: return "Tuning …"
         case .playing:  return model.isStereo ? "FM · Stereo" : "FM · Mono"
         }
+    }
+}
+
+/// What the reception indicator is based on: the estimated
+/// carrier-to-noise ratio, the stereo pilot and RDS.
+private struct ReceptionDetails: View {
+
+    @Environment(ReceiverModel.self) private var model
+
+    var body: some View {
+        @Bindable var model = model
+        let reception = model.reception
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Reception")
+                .font(.headline)
+            Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
+                GridRow {
+                    Text("Signal-to-noise ratio")
+                        .foregroundStyle(.secondary)
+                    Text(reception.map { "\(Int($0.cnr.rounded())) dB" } ?? "–")
+                        .monospacedDigit()
+                }
+                GridRow {
+                    Text("Stereo pilot")
+                        .foregroundStyle(.secondary)
+                    Text(reception?.pilotDetected == true ? "Detected" : "Not detected")
+                }
+                GridRow {
+                    Text("RDS")
+                        .foregroundStyle(.secondary)
+                    Text(reception?.rdsReceiving == true ? "Receiving" : "Not received")
+                }
+                GridRow {
+                    Text("Input level")
+                        .foregroundStyle(.secondary)
+                    if let reception, reception.isOverloaded {
+                        Label("Overloaded", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text(reception.map { "\(Int($0.inputLevel.rounded())) dBFS" } ?? "–")
+                            .monospacedDigit()
+                    }
+                }
+            }
+
+            Divider()
+
+            Picker("Gain", selection: $model.automaticGain) {
+                Text("Automatic Gain").tag(true)
+                Text("Manual Gain").tag(false)
+            }
+            .pickerStyle(.segmented)
+            if !model.automaticGain {
+                HStack {
+                    Slider(value: $model.manualGain, in: 0...50, step: 1) {
+                        Text("Gain")
+                    }
+                    Text("\(Int(model.manualGain)) dB")
+                        .monospacedDigit()
+                        .frame(width: 52, alignment: .trailing)
+                }
+            }
+
+            Text("Full stereo needs about 28 dB; below that the audio blends to mono, fully at 18 dB. If the input overloads, lower the gain; a weak station may need more.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding()
+        .frame(width: 360)
     }
 }
 

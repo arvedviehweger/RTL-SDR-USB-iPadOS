@@ -164,10 +164,11 @@ The app has four sections:
   favorites remember their station names. Playback continues in the background
   and shows up on the Lock Screen and in Control Center, whose track buttons
   switch between favorites. The bars show the reception quality, estimated
-  from how much the signal's envelope fluctuates (an FM signal's is constant).
-  Stereo blends to mono as the reception gets weak. The options menu switches
-  stereo off and sets the de-emphasis (50 µs, or 75 µs in the Americas and
-  South Korea; picked from the region by default).
+  from how much the signal's envelope fluctuates (an FM signal's is constant);
+  tap them for the numbers and the tuner gain. Stereo blends to mono as the
+  reception gets weak. The options menu switches stereo off and sets the de-
+  emphasis (50 µs, or 75 µs in the Americas and South Korea; picked from the
+  region by default).
 - **Network.** Turns on the rtl_tcp-compatible TCP server on port `1234` and
   shows the iPad's Wi-Fi address(es), each with a copy button. In any SDR
   client, add an rtl_tcp source pointing at `<iPad-IP>:1234`, or at

@@ -26,7 +26,12 @@ nonisolated final class FMReceiver: @unchecked Sendable {
     struct Reception: Equatable, Sendable {
         var frequency: UInt32           // the station this describes
         var quality = 0.0               // 0 … 1
+        var cnr = 0.0                   // dB, estimated
+        var pilotDetected = false
         var isStereo = false
+        var rdsReceiving = false
+        var inputLevel = 0.0            // dBFS at the converter
+        var isOverloaded = false        // the converter clips
         var stationName: String?        // RDS PS
         var radioText: String?          // RDS RT
     }
@@ -48,6 +53,8 @@ nonisolated final class FMReceiver: @unchecked Sendable {
                                  target: FMDemodulator.audioRate * 15 / 100)
     private let demodulator = FMDemodulator()
     private let pendingFrequency = Mutex<UInt32?>(nil)
+    /// Tuner gain in tenths of a dB, nil for automatic; set while playing.
+    private let pendingGain = Mutex<Int??>(nil)
 
     // On `queue`.
     private var output: AudioOutput?        // created on first use
@@ -65,8 +72,18 @@ nonisolated final class FMReceiver: @unchecked Sendable {
 
     // MARK: - Control
 
-    func start(frequency: UInt32, deemphasis: Double, stereo: Bool) {
-        queue.async { self.doStart(frequency: frequency, deemphasis: deemphasis, stereo: stereo) }
+    /// `gain` in tenths of a dB, nil for automatic.
+    func start(frequency: UInt32, gain: Int?, deemphasis: Double, stereo: Bool) {
+        queue.async {
+            self.doStart(frequency: frequency, gain: gain, deemphasis: deemphasis, stereo: stereo)
+        }
+    }
+
+    /// Changes the tuner gain while playing; like tuning, quick successive
+    /// calls (a slider) collapse into the latest value.
+    func setGain(_ gain: Int?) {
+        pendingGain.withLock { $0 = .some(gain) }
+        queue.async { self.applyPendingGain() }
     }
 
     func stop() {
@@ -100,7 +117,7 @@ nonisolated final class FMReceiver: @unchecked Sendable {
 
     // MARK: - On the queue
 
-    private func doStart(frequency: UInt32, deemphasis: Double, stereo: Bool) {
+    private func doStart(frequency: UInt32, gain: Int?, deemphasis: Double, stereo: Bool) {
         guard !running else { return }
 
         guard client.open() else {
@@ -113,11 +130,12 @@ nonisolated final class FMReceiver: @unchecked Sendable {
             return
         }
         pendingFrequency.withLock { $0 = nil }
+        pendingGain.withLock { $0 = nil }
         client.call(kRTLSDRMethodStopStream)
         let setup = [
             client.call(kRTLSDRMethodSetSampleRate, UInt64(FMDemodulator.inputRate)),
             client.call(kRTLSDRMethodSetCenterFreq, tunerFrequency(frequency)),
-            client.call(kRTLSDRMethodSetTunerGainMode, 0),        // automatic
+            applyGain(gain),
             client.call(kRTLSDRMethodResetBuffer),
         ]
         guard setup.allSatisfy({ $0 == 0 }) else {
@@ -184,6 +202,21 @@ nonisolated final class FMReceiver: @unchecked Sendable {
         untilReport = 0
     }
 
+    private func applyPendingGain() {
+        guard let gain = pendingGain.withLock({ value -> Int?? in
+            defer { value = nil }
+            return value
+        }) else { return }
+        guard running else { return }
+        applyGain(gain)
+    }
+
+    @discardableResult
+    private func applyGain(_ gain: Int?) -> Int32 {
+        guard let gain else { return client.call(kRTLSDRMethodSetTunerGainMode, 0) }
+        return client.call(kRTLSDRMethodSetTunerGain, UInt64(UInt32(bitPattern: Int32(gain))))
+    }
+
     private func tunerFrequency(_ station: UInt32) -> UInt64 {
         UInt64(station) + UInt64(FMDemodulator.tuningOffset)
     }
@@ -215,7 +248,12 @@ nonisolated final class FMReceiver: @unchecked Sendable {
             untilReport = FMDemodulator.audioRate / 4
             notify(.reception(Reception(frequency: frequency,
                                         quality: demodulator.quality,
+                                        cnr: demodulator.cnr,
+                                        pilotDetected: demodulator.isPilotLocked,
                                         isStereo: demodulator.isStereo,
+                                        rdsReceiving: demodulator.rds.parser.isSynced,
+                                        inputLevel: demodulator.inputLevel ?? -100,
+                                        isOverloaded: demodulator.clipping > 1e-4,
                                         stationName: demodulator.rds.parser.stationName,
                                         radioText: demodulator.rds.parser.radioText)))
         }
