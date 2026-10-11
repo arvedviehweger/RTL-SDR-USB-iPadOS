@@ -70,7 +70,7 @@ control command waits for the tuner's I2C bus.
 
 ## Requirements
 
-- iPad with USB-C & M(x)-Series SoC, iPadOS 16 or later (DriverKit on iPad).
+- iPad with an M-series chip (DriverKit on iPad), iPadOS 26 or later.
 - An RTL2832U-based RTL-SDR receiver (Realtek vendor ID `0x0BDA` / `3034`).
 - Xcode with the DriverKit SDK installed.
 - An Apple Developer account with the DriverKit capability enabled for the bundle identifier(s).
