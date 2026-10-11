@@ -70,9 +70,13 @@ nonisolated final class FMDemodulator {
     private let resampler = Resampler()
     private let pilot = PilotPLL()
     let rds = RDSDecoder()
+    let spectrum = SpectrumAnalyzer(rate: inputRate)
 
     /// False plays mono even when the station sends stereo.
     var stereoEnabled = true
+    /// Runs the spectrum analyser on the IQ stream.
+    var spectrumEnabled = false
+    private var spectrumFrame: [Float]?
 
     // Block buffers, reused between calls.
     private var i960: [Float] = []
@@ -166,6 +170,12 @@ nonisolated final class FMDemodulator {
 
     var isPilotLocked: Bool { pilot.isLocked }
 
+    /// The latest spectrum frame, once.
+    func takeSpectrum() -> [Float]? {
+        defer { spectrumFrame = nil }
+        return spectrumFrame
+    }
+
     /// Demodulates a block of interleaved 8-bit IQ bytes and appends the
     /// audio as interleaved left / right samples to `audio`. `ratio`
     /// stretches the output slightly (output / input samples, close to 1)
@@ -173,6 +183,9 @@ nonisolated final class FMDemodulator {
     func process(_ iq: UnsafeRawBufferPointer, ratio: Double, into audio: inout [Float]) {
         convert(iq)
         guard !i960.isEmpty else { return }
+        if spectrumEnabled, let frame = spectrum.process(i960, q960) {
+            spectrumFrame = frame
+        }
         selectChannel()
         guard !i240.isEmpty else { return }
         discriminate()

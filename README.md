@@ -32,8 +32,9 @@ a built-in FM radio.
 - Survives backgrounding the app: audio background mode + idle-timer disable
   keep the server running when the screen locks or another app is opened.
 - FM broadcast radio in stereo with RDS (station name and radio text),
-  favorites, reception indicator, Lock Screen and Control Center controls and
-  AirPlay / Bluetooth output. The demodulator is plain Swift on Accelerate.
+  favorites, reception indicator, spectrum and waterfall with tap to tune,
+  Lock Screen and Control Center controls and AirPlay / Bluetooth output. The
+  demodulator is plain Swift on Accelerate.
 - One-shot self-test that exercises the whole stack (USB → dext → ring
   buffer → app → IQ) and shows the result as a checklist, with the detailed
   log one tap away.
@@ -100,10 +101,12 @@ third_party/LICENSE.webrtlsdr       Apache-2.0 text for the webrtlsdr port
 RTL-SDR Host/                       ← host application target
 ├── RTLSDRHostApp.swift             SwiftUI app, sidebar / tab layout
 ├── ReceiverModel.swift             device state; radio, server and test share it
-├── Views/                          Radio, Network, Diagnostics, About + licenses
+├── Views/                          Radio (+ spectrum / waterfall), Network,
+│                                   Diagnostics, About + licenses
 ├── Radio/
 │   ├── FMDemodulator.swift         IQ → stereo FM audio (Accelerate)
 │   ├── RDSDecoder.swift            RDS: station name and radio text
+│   ├── SpectrumAnalyzer.swift      FFT of the IQ stream for the waterfall
 │   ├── FMReceiver.swift            device control, audio output, clock drift
 │   └── NowPlaying.swift            Lock Screen / Control Center
 ├── RTLSDRClient.swift              wraps the IOKit user client
@@ -165,10 +168,12 @@ The app has four sections:
   and shows up on the Lock Screen and in Control Center, whose track buttons
   switch between favorites. The bars show the reception quality, estimated
   from how much the signal's envelope fluctuates (an FM signal's is constant);
-  tap them for the numbers and the tuner gain. Stereo blends to mono as the
-  reception gets weak. The options menu switches stereo off and sets the de-
-  emphasis (50 µs, or 75 µs in the Americas and South Korea; picked from the
-  region by default).
+  tap them for the numbers and the tuner gain. The waveform button shows the
+  spectrum and a waterfall of the 960 kHz around the station (which sits a
+  quarter from the left edge, see below); tapping a signal tunes to it. Stereo
+  blends to mono as the reception gets weak. The options menu switches stereo
+  off and sets the de-emphasis (50 µs, or 75 µs in the Americas and South
+  Korea; picked from the region by default).
 - **Network.** Turns on the rtl_tcp-compatible TCP server on port `1234` and
   shows the iPad's Wi-Fi address(es), each with a copy button. In any SDR
   client, add an rtl_tcp source pointing at `<iPad-IP>:1234`, or at

@@ -36,6 +36,14 @@ nonisolated final class FMReceiver: @unchecked Sendable {
         var radioText: String?          // RDS RT
     }
 
+    /// Levels in dB across the IQ stream, from center − span/2 to
+    /// center + span/2.
+    struct SpectrumFrame: Sendable {
+        let levels: [Float]
+        let center: UInt32              // the tuner's frequency, Hz
+        let span: Double                // Hz
+    }
+
     enum Event: Sendable {
         case started
         case stopped
@@ -45,6 +53,8 @@ nonisolated final class FMReceiver: @unchecked Sendable {
 
     /// Called on the main queue.
     var event: (@MainActor (Event) -> Void)?
+    /// Called on the main queue, 25 times per second while enabled.
+    var spectrum: (@MainActor (SpectrumFrame) -> Void)?
 
     private let client: RTLSDRClient
     private let queue = DispatchQueue(label: "com.m0kds.fm", qos: .userInteractive)
@@ -55,6 +65,7 @@ nonisolated final class FMReceiver: @unchecked Sendable {
     private let pendingFrequency = Mutex<UInt32?>(nil)
     /// Tuner gain in tenths of a dB, nil for automatic; set while playing.
     private let pendingGain = Mutex<Int??>(nil)
+    private let spectrumEnabled = Atomic<Bool>(false)
 
     // On `queue`.
     private var output: AudioOutput?        // created on first use
@@ -103,6 +114,11 @@ nonisolated final class FMReceiver: @unchecked Sendable {
 
     func setStereo(_ enabled: Bool) {
         queue.async { self.demodulator.stereoEnabled = enabled }
+    }
+
+    /// The spectrum costs a little CPU; it runs only while it is shown.
+    func setSpectrumEnabled(_ enabled: Bool) {
+        spectrumEnabled.store(enabled, ordering: .relaxed)
     }
 
     private func notify(_ e: Event) {
@@ -231,8 +247,23 @@ nonisolated final class FMReceiver: @unchecked Sendable {
             return
         }
 
+        let wantsSpectrum = spectrumEnabled.load(ordering: .relaxed)
+        if wantsSpectrum != demodulator.spectrumEnabled {
+            demodulator.spectrumEnabled = wantsSpectrum
+            demodulator.spectrum.reset()
+        }
+
         audio.removeAll(keepingCapacity: true)
         iq.withUnsafeBytes { demodulator.process($0, ratio: ratio, into: &audio) }
+
+        if let levels = demodulator.takeSpectrum() {
+            let frame = SpectrumFrame(levels: levels,
+                                      center: frequency + UInt32(FMDemodulator.tuningOffset),
+                                      span: Double(FMDemodulator.inputRate))
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self.spectrum?(frame) }
+            }
+        }
 
         let frames = audio.count / 2
         if muteRemaining > 0 && frames > 0 {

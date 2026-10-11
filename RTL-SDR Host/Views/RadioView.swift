@@ -11,6 +11,7 @@ import SwiftUI
 struct RadioView: View {
 
     @Environment(ReceiverModel.self) private var model
+    @AppStorage("radio.spectrum") private var showsSpectrum = false
 
     var body: some View {
         Group {
@@ -38,6 +39,10 @@ struct RadioView: View {
         .navigationTitle("Radio")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(showsSpectrum ? "Hide Spectrum" : "Show Spectrum",
+                       systemImage: showsSpectrum ? "waveform.circle.fill" : "waveform.circle") {
+                    withAnimation(.snappy) { showsSpectrum.toggle() }
+                }
                 Button(model.isFavorite ? "Remove from Favorites" : "Add to Favorites",
                        systemImage: model.isFavorite ? "star.fill" : "star") {
                     model.toggleFavorite()
@@ -51,8 +56,15 @@ struct RadioView: View {
 
     private var player: some View {
         ScrollView {
-            VStack(spacing: 36) {
-                StationDisplay()
+            // With the spectrum shown everything moves closer together, so
+            // the controls still fit an iPad in landscape.
+            VStack(spacing: showsSpectrum ? 24 : 36) {
+                StationDisplay(compact: showsSpectrum)
+                if showsSpectrum {
+                    SpectrumPanel()
+                        .frame(height: 240)
+                        .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+                }
                 TuningScale(frequency: model.frequency,
                             onTune: { model.tune(to: $0) },
                             onStep: { model.step(by: $0) })
@@ -118,11 +130,13 @@ private struct StepButtonStyle: ViewModifier {
 /// Station name, frequency in large digits, reception and radio text.
 private struct StationDisplay: View {
 
+    let compact: Bool
+
     @Environment(ReceiverModel.self) private var model
     @State private var showsDetails = false
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: compact ? 8 : 12) {
             // Lines keep their height while empty, so nothing jumps when RDS
             // arrives.
             Text(model.displayName ?? " ")
@@ -134,7 +148,7 @@ private struct StationDisplay: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(Format.mhz(model.frequency))
-                    .font(.system(size: 96, weight: .semibold, design: .rounded))
+                    .font(.system(size: compact ? 72 : 96, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .contentTransition(.numericText(value: Double(model.frequency)))
                     .animation(.snappy, value: model.frequency)

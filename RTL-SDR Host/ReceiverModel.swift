@@ -286,6 +286,13 @@ final class ReceiverModel {
         if let next { tune(to: next) }
     }
 
+    /// Hands the radio's spectrum to a view while it shows it; nil stops
+    /// the analyser.
+    func setSpectrumHandler(_ handler: (@MainActor (FMReceiver.SpectrumFrame) -> Void)?) {
+        fm.spectrum = handler
+        fm.setSpectrumEnabled(handler != nil)
+    }
+
     private func saveFavorites() {
         UserDefaults.standard.set(favorites.map(Int.init), forKey: Keys.favorites)
         updateNowPlaying()
