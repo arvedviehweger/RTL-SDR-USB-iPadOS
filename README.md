@@ -1,30 +1,36 @@
 # RTL-SDR (USB) for iPadOS
 
 
-A unofficial USBDriverKit port of [`librtlsdr`](https://github.com/librtlsdr/librtlsdr)
-for iPadOS, packaged together with a host app that re-publishes the IQ stream
-as an **rtl_tcp-compatible TCP server**. The port of `librtlsdr` to USBDriverKit 
-finally allows iPadOS (iOS) to access the RTL-SDR via USB without a jailbreak.
+An unofficial USBDriverKit driver for RTL2832U-based RTL-SDR receivers on
+iPadOS, packaged together with a host app that re-publishes the IQ stream
+as an **rtl_tcp-compatible TCP server**. It allows iPadOS (iOS) to access the
+RTL-SDR via USB without a jailbreak.
 This project is not affiliated with Realtek or RTL-SDR Blog.
 
 The driver itself is a regular DriverKit extension that matches RTL2832U-based
-USB SDR receivers and runs the `librtlsdr` core. The host app opens an
+USB SDR receivers and programs them with the `RTL2832Device` driver from
+[gnuradio4-blocks](https://github.com/gnuradio/gnuradio4-blocks) (MIT). The
+host app opens an
 `IOUserClient` to that extension, maps a shared-memory ring buffer to receive
 the IQ samples, and serves them over the network so that existing SDR clients
 on any device (SDR++, GQRX, SDRangel, CubicSDR, SDR#, …) can use the iPad's
 RTL-SDR exactly as if it were attached to a PC running `rtl_tcp`.
 
-`librtlsdr` is built **unmodified** from upstream, included as a git
-submodule. The dext supplies the platform underneath it instead: small shims
-that implement the parts of libusb, pthreads and libc that `librtlsdr` uses on
-top of USBDriverKit and DriverKit.
+`RTL2832Device` is built **unmodified** from upstream, included as a git
+submodule. The dext supplies the platform underneath it instead: a USB
+transport on top of USBDriverKit and a `<print>` that logs to `os_log`.
+No GPL-licensed third-party code is involved: the earlier
+`librtlsdr`-based driver has been replaced.
 
-Verified to work with R820T2 & E4000 tuners.
+The `librtlsdr`-based predecessor was verified with R820T2 & E4000 tuners;
+this driver still has to be verified on hardware.
 
 ## Features
 
-- All upstream tuner support: R820T / R820T2, R828D, E4000, FC0012, FC0013,
-  FC2580, straight from upstream `librtlsdr`.
+- Tuners: R820T / R820T2 / R860, R828D (including the RTL-SDR Blog V4 with
+  its HF upconverter) and E4000. FC0012, FC0013 and FC2580 are not supported.
+- Bias tee, direct sampling (I or Q branch) and frequency correction for
+  both the sample clock and the tuner.
 - USB control transfers and asynchronous bulk IQ streaming via
   `IOUSBHostInterface::DeviceRequest` and `IOUSBHostPipe::AsyncIO`.
 - Shared-memory IQ ring buffer between the dext and the host app, mapped
@@ -52,7 +58,7 @@ Verified to work with R820T2 & E4000 tuners.
                                │  + shared-memory IQ ring buffer
         ┌──────────────────────┴───────────────────────┐
         │   RTL_SDR  (DriverKit extension)             │
-        │   • upstream librtlsdr + DriverKit shims     │
+        │   • gnuradio4-blocks RTL2832Device + shims   │
         │   • USB control + async bulk-IN streaming   │
         └──────────────────────┬───────────────────────┘
                                │  USB  (USBDriverKit)
@@ -61,10 +67,9 @@ Verified to work with R820T2 & E4000 tuners.
         └──────────────────────────────────────────────┘
 ```
 
-Inside the dext, device control runs on one dispatch queue and the libusb
-event loop of `rtlsdr_read_async()` on a second one, the same split as
-upstream's control thread and async thread. `librtlsdr`'s own I2C mutex
-coordinates the two.
+Inside the dext, device control runs on one dispatch queue and the bulk-IN
+completions of the IQ stream on a second one, so IQ keeps flowing while a
+control command waits for the tuner's I2C bus.
 
 ## Requirements
 
@@ -77,21 +82,24 @@ coordinates the two.
 
 ```
 RTL-SDR/                            ← driver extension target
-├── RTL_SDR.iig / RTL_SDR.cpp       USBDriverKit interface driver
+├── RTL_SDR.iig / RTL_SDR.cpp       USBDriverKit interface driver, IQ stream
+├── RTL2832Radio.cpp / .h           user client commands on RTL2832Device
+├── WebRTLSDRPort.cpp / .h          code ported from webrtlsdr (Apache-2.0)
 ├── RTL_SDR_DEV.iig / .cpp          device-level driver (matching only)
 ├── RTL_SDR_UserClient.iig / .cpp   IOUserClient for the host app
 ├── Info.plist                      USB matching + UserClientProperties
 ├── RTL-SDR.entitlements            driverkit / transport.usb
 └── include/RTLSDRShared.h          dext ↔ app IPC contract
 
-Shim/                               ← platform layer for librtlsdr (dext)
-├── libusb_driverkit.cpp / .h       libusb on USBDriverKit
-├── pthread_driverkit.cpp           pthreads on IOLock / IODispatchQueue
-├── libc_driverkit.cpp              malloc, fprintf → os_log, usleep, …
-└── include/                        stand-ins for <libusb.h>, <pthread.h>,
-                                    <stdio.h>, … and rtl_app_ver.h
+Shim/                               ← platform layer for RTL2832Device (dext)
+├── usb_driverkit.cpp / .h          USB transport on USBDriverKit
+└── include/
+    ├── print                       std::println → os_log
+    └── gnuradio-4.0/common/
+        └── USBDevice.hpp           upstream's USB interface on usb_driverkit
 
-third_party/librtlsdr/              ← upstream librtlsdr (git submodule)
+third_party/gnuradio4-blocks/       ← upstream gnuradio4-blocks (git submodule)
+third_party/LICENSE.webrtlsdr       Apache-2.0 text for the webrtlsdr port
 
 RTL-SDR Host/                       ← host application target
 ├── ViewController.swift            UI (test button, rtl_tcp server)
@@ -138,8 +146,8 @@ RTL-SDR Host/                       ← host application target
 
    ```
    RTL_SDR::Start
+   [RTL2832] found R820T/R820T2/R860 tuner
    RTL_SDR: started, tuner type = 5
-   [rtlsdr] Found Rafael Micro R820T/2 tuner
    ```
 
 ## Usage
@@ -159,38 +167,43 @@ While the server is running the app stays alive in the background (audio
 background mode + auto-lock disabled), so switching to another app or letting
 the screen turn off does not interrupt the stream.
 
-## Porting notes (`librtlsdr` → USBDriverKit)
+## Porting notes (`RTL2832Device` → USBDriverKit)
 
-`librtlsdr` is compiled from `third_party/librtlsdr` without a single change.
-Everything DriverKit lacks is provided underneath it by `Shim/`, and only the
-upstream sources see those headers (per-file compiler flags in the Xcode
-project):
+`RTL2832Device.hpp` (`blocks/sdr` in gnuradio4-blocks) is compiled from
+`third_party/gnuradio4-blocks` without a single change. It is C++23 and
+header-only; DriverKit's libc++ provides everything it uses except output to
+stdout / stderr. `Shim/include` comes first in the header search path and
+supplies the two missing pieces:
 
-- **libusb** (`libusb_driverkit.cpp`). The one libusb device is the
-  `IOUSBHostInterface` the dext was matched to, so upstream's
-  `rtlsdr_open(&dev, 0)` finds it by vendor/product ID as usual. Control
-  transfers go through `IOUSBHostInterface::DeviceRequest`, bulk transfers
-  through `IOUSBHostPipe::IO` / `AsyncIO`. The libusb event loop in
-  `rtlsdr_read_async()` sleeps on a reentrant `IODispatchQueue` while the
-  bulk-IN completions are delivered to that same queue, and calls the
-  transfer callbacks there, as libusb does on its event thread. Transfers
-  freed while still in flight keep their buffer and `OSAction` until the
-  aborted completion has come back.
-- **pthreads** (`pthread_driverkit.cpp`). Mutexes map to `IOLock` /
-  `IORecursiveLock`, threads to blocks on their own `IODispatchQueue`.
-  Condition variables poll; upstream only waits on one in the soft-AGC worker,
-  which is off by default.
-- **libc** (`libc_driverkit.cpp`). `malloc`/`free` on `IOMalloc`, `fprintf` /
-  `printf` to `os_log`, `usleep` on `IOSleep`, an empty environment, and the
-  odd function DriverKit declares but does not export (`isspace`).
-- **Not built.** The UDP control server and the RPC client are optional in
-  upstream and stay disabled; there are no BSD sockets in DriverKit.
+- **USB** (`USBDevice.hpp`, `usb_driverkit.cpp`). Upstream's USB interface
+  (`controlOut`, `controlIn`, `bulkRead`, …) on the `IOUSBHostInterface` the
+  dext was matched to. Control transfers go through
+  `IOUSBHostInterface::DeviceRequest`. Device discovery is left to the IOKit
+  personalities, so `enumerateUSBDevices()` reports the matched device.
+- **`<print>`**. `std::println` writes to `os_log`.
 
-Updating `librtlsdr` is a matter of moving the submodule to a newer commit.
-If upstream starts using a libusb, pthread or libc function the shims do not
-cover yet, the build fails at link time and the shim gets one more function.
+`RTL2832Radio.cpp` maps the user client commands onto `RTL2832Device` with
+`librtlsdr`'s semantics, so the API in `RTLSDRShared.h` is unchanged. It also
+corrects the tuner frequency for the crystal's ppm error, which
+`RTL2832Device` only does for the sample clock. What else `RTL2832Device`
+does not do itself (bias tee, direct sampling, tuner standby, R828D input
+switching, the RTL-SDR Blog V4's upconverter) is ported from
+[webrtlsdr](https://github.com/jtarrio/webrtlsdr) (Apache-2.0) and works
+through `RTL2832Device`'s public register access functions. All of that code
+is in `WebRTLSDRPort.cpp`; each function there links to the exact webrtlsdr
+lines it comes from and lists what was changed.
 
-The dext exposes `librtlsdr` to the host app through an
+The IQ stream does not go through `RTL2832Device`: the dext keeps 32 bulk-IN
+transfers of 32 KiB in flight with `IOUSBHostPipe::AsyncIO` and copies each
+completion into the ring buffer. Buffers and `OSAction`s live from `Start` to
+`Stop`; on teardown the dext waits until every aborted transfer has come back
+before it releases them.
+
+Updating `RTL2832Device` is a matter of moving the submodule to a newer
+commit. If upstream starts using another platform function, the build fails
+and the shim gets one more piece.
+
+The dext exposes the device to the host app through an
 `IOUserClient` with a small scalar-method API (`kRTLSDRMethod*` in
 `RTLSDRShared.h`) plus a 2 MiB shared-memory IQ ring buffer mapped via
 `IOConnectMapMemory64`.
@@ -214,9 +227,8 @@ The dext exposes `librtlsdr` to the host app through an
 | `0x0D`     | Set tuner gain by index            | implemented                           |
 | `0x0E`     | Set bias-T                         | implemented                           |
 
-\* `rtlsdr_set_offset_tuning()` returns `-2` for R820T/R828D in `librtlsdr`
-itself — these tuners do not support offset tuning. Same behaviour as
-upstream `rtl_tcp`.
+\* Offset tuning returns `-2`, as `librtlsdr` does for R820T/R828D — these
+tuners do not support it. Same behaviour as upstream `rtl_tcp`.
 
 ## Status and known limitations
 
@@ -225,32 +237,34 @@ upstream `rtl_tcp`.
   block reconnects.
 - RTL-SDR Blog V4 detection (via the USB manufacturer / product strings) is
   implemented but not yet verified on V4 hardware.
+- The tuner's IF filter stays at the width `RTL2832Device` sets up; tuner
+  bandwidth requests are accepted but have no effect.
 - The dext cannot write files (DriverKit sandbox). Any IQ recording feature
   has to live in the host app, consuming the same ring buffer.
 
 ## License
 
-Copyright © 2026 Arved Viehweger. The DriverKit driver, its shims and the
-Swift host app in this repository are released under the same terms as the
-upstream library — see below.
+Copyright © 2026 Arved Viehweger. The code in this repository is distributed
+under the terms in `LICENSE`.
 
-The driver extension links `librtlsdr` (unmodified, from
-`third_party/librtlsdr`), which is licensed under the
-**GNU General Public License v2 or later**. The driver extension is a
-derivative work of `librtlsdr` and is therefore distributed under the same
-terms. The Swift host app is original code but talks to the GPL-licensed
-extension, therefore this project as a whole is GPL-licensed.
+Third-party code in the driver extension:
 
-Note that GPL terms are widely considered incompatible with Apple's App
-Store distribution terms. The App Store-licensed binary download imposes
-restrictions that GPL does not allow. Personal & sideloaded
-distribution are not affected.
+- `RTL2832Device` from [gnuradio4-blocks](https://github.com/gnuradio/gnuradio4-blocks)
+  (`third_party/gnuradio4-blocks`, unmodified), **MIT License**.
+- `RTL-SDR/WebRTLSDRPort.cpp` is ported from
+  [webrtlsdr](https://github.com/jtarrio/webrtlsdr), Copyright 2024 Jacobo
+  Tarrío Barreiro and 2013 Google Inc., **Apache License 2.0**
+  (`third_party/LICENSE.webrtlsdr`). No other file contains webrtlsdr code.
 
 ## Acknowledgements
 
-- The `librtlsdr` authors — Steve Markgraf, Dimitri Stolnikov and the
-  upstream community at
-  [librtlsdr/librtlsdr](https://github.com/librtlsdr/librtlsdr).
+- The GNU Radio 4 authors and FAIR for `RTL2832Device` in
+  [gnuradio4-blocks](https://github.com/gnuradio/gnuradio4-blocks), and
+  Jacobo Tarrío for [webrtlsdr](https://github.com/jtarrio/webrtlsdr) and
+  google/radioreceiver, which it is based on.
+- The [Osmocom rtl-sdr](https://osmocom.org/projects/rtl-sdr/wiki) project and
+  the `librtlsdr` authors, whose reverse engineering every RTL-SDR driver
+  builds on.
 - Apple's USBDriverKit, IOKit, Network and AVFoundation frameworks, and the
   WWDC '22 "Bring your driver to iPad with DriverKit" session that made any
   of this possible on iPadOS.
