@@ -14,7 +14,27 @@
 
 import Foundation
 
-final class RTLSDRClient {
+/// The plugged-in receiver, as shown in the UI.
+nonisolated struct ReceiverSummary: Equatable {
+    var name: String            // USB manufacturer and product, may be empty
+    var tuner: String
+    var driverVersion: String   // "1.0 (7)", empty from older dexts
+
+    /// False when iPadOS still runs a staged copy of an older dext.
+    var driverMatchesApp: Bool { driverVersion == RTLSDRClient.appVersion }
+}
+
+/// One checkpoint of the connection test, for the checklist in the UI.
+nonisolated struct TestStep: Identifiable {
+    enum Result { case passed, warning, failed }
+
+    let id = UUID()
+    let title: String
+    let result: Result
+    var detail: String? = nil
+}
+
+nonisolated final class RTLSDRClient {
 
     private var connection: UInt32 = 0
     private var ringBase: UnsafeMutableRawPointer?
@@ -73,6 +93,14 @@ final class RTLSDRClient {
                                        UInt32(kRTLSDRMethodGetDeviceInfo),
                                        &info, &size)
         return kr == 0 ? info : nil
+    }
+
+    /// Reads the device info of the open connection for the UI.
+    func summary() -> ReceiverSummary? {
+        guard let info = deviceInfo() else { return nil }
+        return ReceiverSummary(name: RTLSDRClient.deviceName(info),
+                               tuner: RTLSDRClient.tunerName(info.tunerType),
+                               driverVersion: RTLSDRClient.cString(info.dextVersion))
     }
 
     /// "Manufacturer Product" from the dongle's USB string descriptors,
@@ -201,48 +229,72 @@ final class RTLSDRClient {
 
     // MARK: - One-shot self-test
 
-    func runConnectionTest(log: @escaping (String) -> Void) {
+    /// `log` gets the detailed lines, `step` one result per checkpoint.
+    func runConnectionTest(log: @escaping (String) -> Void,
+                           step: @escaping (TestStep) -> Void) {
         log("Searching for RTL_SDR service …")
         guard open() else {
             log("✗ Could not connect to the RTL_SDR user client.")
             log("  → Is the RTL-SDR plugged in?")
             log("  → Is the driver enabled in Settings › Apps › RTL-SDR-Host?")
+            step(TestStep(title: "Driver connection", result: .failed,
+                          detail: "Is the RTL-SDR plugged in and its driver turned on in Settings › Apps › RTL-SDR-Host?"))
             return
         }
         log("✓ User client connection open.")
+        step(TestStep(title: "Driver connection", result: .passed))
 
         if let info = deviceInfo() {
             log("✓ GetDeviceInfo:")
             let name = RTLSDRClient.deviceName(info)
+            let tuner = RTLSDRClient.tunerName(info.tunerType)
             log("    device=\(name.isEmpty ? "unknown" : name)")
-            log("    valid=\(info.valid)   tuner=\(tunerName(info.tunerType))")
+            log("    valid=\(info.valid)   tuner=\(tuner)")
             log("    sampleRate=\(info.sampleRate) Hz   streaming=\(info.streaming)")
             let dext = RTLSDRClient.cString(info.dextVersion)
             let app = RTLSDRClient.appVersion
             log("    dext=\(dext.isEmpty ? "unknown (older build)" : dext)   app=\(app)")
+            step(TestStep(title: "Receiver", result: .passed,
+                          detail: name.isEmpty ? tuner : "\(name) · \(tuner)"))
             if dext != app {
                 log("⚠ The running dext is not the one in this app.")
                 log("  → Replug the RTL-SDR; bump the build number after dext changes.")
+                step(TestStep(title: "Driver version", result: .warning,
+                              detail: "The running driver (\(dext.isEmpty ? "unknown" : dext)) is not the one in this app (\(app)). Replug the RTL-SDR."))
+            } else {
+                step(TestStep(title: "Driver version", result: .passed, detail: dext))
             }
         } else {
             log("⚠ GetDeviceInfo failed (struct method).")
+            step(TestStep(title: "Receiver", result: .warning,
+                          detail: "The driver did not report device information."))
         }
 
-        report("SetSampleRate 2.048 MS/s",
-               call(kRTLSDRMethodSetSampleRate, 2_048_000), log)
-        report("SetCenterFreq 100 MHz",
-               call(kRTLSDRMethodSetCenterFreq, 100_000_000), log)
-        report("SetTunerGainMode auto",
-               call(kRTLSDRMethodSetTunerGainMode, 0), log)
-        report("ResetBuffer",
-               call(kRTLSDRMethodResetBuffer), log)
+        let setup = [
+            report("SetSampleRate 2.048 MS/s",
+                   call(kRTLSDRMethodSetSampleRate, 2_048_000), log),
+            report("SetCenterFreq 100 MHz",
+                   call(kRTLSDRMethodSetCenterFreq, 100_000_000), log),
+            report("SetTunerGainMode auto",
+                   call(kRTLSDRMethodSetTunerGainMode, 0), log),
+            report("ResetBuffer",
+                   call(kRTLSDRMethodResetBuffer), log),
+        ]
+        step(setup.allSatisfy { $0 }
+             ? TestStep(title: "Tuner setup", result: .passed,
+                        detail: "2.048 MS/s at 100 MHz")
+             : TestStep(title: "Tuner setup", result: .failed,
+                        detail: "The receiver rejected a command. See the test log."))
 
         guard mapRing() else {
             log("✗ Could not map the IQ ring buffer.")
+            step(TestStep(title: "Sample buffer", result: .failed,
+                          detail: "Could not map the shared IQ buffer."))
             close()
             return
         }
         log("✓ IQ ring buffer mapped: \(ringSize) bytes (payload \(ringDataSize)).")
+        step(TestStep(title: "Sample buffer", result: .passed))
         resetRingCounters()
 
         let writeBefore = ringWriteCount
@@ -270,11 +322,15 @@ final class RTLSDRClient {
             log("    data sample: \(peekData(16))")
             log("")
             log("CONNECTION TEST SUCCESSFUL.")
+            step(TestStep(title: "IQ streaming", result: .passed,
+                          detail: "\(Int(kib)) KiB/s, \(drops) bytes dropped"))
         } else {
             log("")
             log("⚠ No IQ data received (writeCount unchanged).")
             log("  → Check the streaming path (AsyncIO/ReadComplete),")
             log("    look for [rtlsdr] messages in the console.")
+            step(TestStep(title: "IQ streaming", result: .failed,
+                          detail: "No samples arrived within one second."))
         }
 
         close()
@@ -283,15 +339,17 @@ final class RTLSDRClient {
 
     // MARK: - Helpers
 
-    private func report(_ name: String, _ kr: Int32, _ log: (String) -> Void) {
+    @discardableResult
+    private func report(_ name: String, _ kr: Int32, _ log: (String) -> Void) -> Bool {
         if kr == 0 {
             log("  ✓ \(name)")
         } else {
             log("  ✗ \(name)  (kr=0x\(String(format: "%08X", UInt32(bitPattern: kr))))")
         }
+        return kr == 0
     }
 
-    private func tunerName(_ t: UInt32) -> String {
+    private static func tunerName(_ t: UInt32) -> String {
         switch t {
         case 1:  return "Elonics E4000"
         case 2:  return "Fitipower FC0012"

@@ -31,7 +31,8 @@ RTL-SDR exactly as if it were attached to a PC running `rtl_tcp`.
 - Survives backgrounding the app: audio background mode + idle-timer disable
   keep the server running when the screen locks or another app is opened.
 - One-shot self-test that exercises the whole stack (USB → dext → ring
-  buffer → app → IQ) and prints results to an on-screen log.
+  buffer → app → IQ) and shows the result as a checklist, with the detailed
+  log one tap away.
 
 ## Architecture
 
@@ -93,7 +94,9 @@ third_party/gnuradio4-blocks/       ← upstream gnuradio4-blocks (git submodule
 third_party/LICENSE.webrtlsdr       Apache-2.0 text for the webrtlsdr port
 
 RTL-SDR Host/                       ← host application target
-├── ViewController.swift            UI (test button, rtl_tcp server)
+├── RTLSDRHostApp.swift             SwiftUI app, sidebar / tab layout
+├── ReceiverModel.swift             device state; server and test share it
+├── Views/                          Network, Diagnostics
 ├── RTLSDRClient.swift              wraps the IOKit user client
 ├── RTLTCPServer.swift              rtl_tcp-compatible NWListener server
 ├── BackgroundAudioKeeper.swift     audio-mode keep-alive
@@ -102,7 +105,7 @@ RTL-SDR Host/                       ← host application target
 ├── RTLSDRShared.h                  copy of the dext IPC contract
 ├── Info.plist                      UIBackgroundModes=audio + usage strings
 ├── RTL-SDR Host.entitlements       communicates-with-drivers
-└── AppDelegate / SceneDelegate / Assets / Main.storyboard
+└── Assets / LaunchScreen.storyboard
 ```
 
 ## Build & install
@@ -132,7 +135,7 @@ RTL-SDR Host/                       ← host application target
    When you change the dext, bump the build number (`CURRENT_PROJECT_VERSION`)
    before reinstalling. iPadOS keeps running its staged copy of the dext
    while the version stays the same. Replug the RTL-SDR afterwards.
-6. Plug in the RTL-SDR. The dext matches the USB device and starts. You may use the "Test Connection" feature of the RTL-SDR-Host app. The iPad
+6. Plug in the RTL-SDR. The dext matches the USB device and starts. You may run the connection test under Diagnostics in the RTL-SDR-Host app. The iPad
    console also shows lines like
 
    ```
@@ -143,16 +146,23 @@ RTL-SDR Host/                       ← host application target
 
 ## Usage
 
-The app has two actions:
+The app has two sections:
 
-- **Test connection.** Opens the user client, fetches the device info,
+- **Network.** Turns on the rtl_tcp-compatible TCP server on port `1234` and
+  shows the iPad's Wi-Fi address(es), each with a copy button. In any SDR
+  client, add an rtl_tcp source pointing at `<iPad-IP>:1234`, or at
+  `127.0.0.1:1234` for an SDR app on the same iPad. Streaming, frequency /
+  sample-rate / gain / bias-T / direct-sampling control all work over the
+  network in real time, just like a PC `rtl_tcp` instance. The section also
+  shows the connected client with the frequency and sample rate it set; every
+  command is listed under Activity.
+- **Diagnostics.** The receiver's tuner and driver version, and the
+  connection test: it opens the user client, fetches the device info,
   configures the device, streams for one second and reports whether IQ bytes
   arrived in the shared ring buffer. A health check for the whole pipeline.
-- **Start rtl_tcp server.** Starts the rtl_tcp-compatible TCP server on port
-  `1234` and shows the iPad's WiFi address(es). In any SDR client, add an
-  rtl_tcp source pointing at `<iPad-IP>:1234`. Streaming, frequency /
-  sample-rate / gain / bias-T / direct-sampling control all work over the
-  network in real time, just like a PC `rtl_tcp` instance.
+
+The server and the test share the receiver, so only one of them runs at a
+time.
 
 While the server is running the app stays alive in the background (audio
 background mode + auto-lock disabled), so switching to another app or letting

@@ -73,10 +73,21 @@ final class RTLTCPServer {
 
     private(set) var port: UInt16 = 1234
 
+    /// What happened to the server and its client, for the UI.
+    enum Event {
+        case started
+        case stopped
+        case failed(String)                 // could not start; not running
+        case clientConnected(String)        // the client's address
+        case clientDisconnected
+        case frequency(UInt32)              // set by the client, in Hz
+        case sampleRate(UInt32)             // set by the client, in Hz
+    }
+
     /// Log sink (always called on the main queue).
     var log: ((String) -> Void)?
-    /// Running-state changes (always called on the main queue). true == running.
-    var statusChanged: ((Bool) -> Void)?
+    /// Server and client events (always called on the main queue).
+    var event: ((Event) -> Void)?
 
     init(client: RTLSDRClient) {
         self.client = client
@@ -98,8 +109,14 @@ final class RTLTCPServer {
         DispatchQueue.main.async { self.log?(s) }
     }
 
-    private func notifyStatus(_ running: Bool) {
-        DispatchQueue.main.async { self.statusChanged?(running) }
+    private func notify(_ e: Event) {
+        DispatchQueue.main.async { self.event?(e) }
+    }
+
+    /// Logs why the server could not start; it is not running afterwards.
+    private func fail(_ message: String) {
+        emit("✗ \(message)")
+        notify(.failed(message))
     }
 
     private func doStart(port: UInt16) {
@@ -107,12 +124,12 @@ final class RTLTCPServer {
         self.port = port
 
         guard client.open() else {
-            emit("✗ RTL-SDR user client unreachable — is the device plugged in? Is the driver enabled in Settings › Apps › RTL-SDR-Host?")
+            fail("RTL-SDR user client unreachable — is the device plugged in? Is the driver enabled in Settings › Apps › RTL-SDR-Host?")
             return
         }
         guard client.mapRing() else {
-            emit("✗ Could not map the IQ ring buffer.")
             client.close()
+            fail("Could not map the IQ ring buffer.")
             return
         }
         if let info = client.deviceInfo() {
@@ -138,8 +155,8 @@ final class RTLTCPServer {
 
         guard let nwPort = NWEndpoint.Port(rawValue: port),
               let l = try? NWListener(using: params, on: nwPort) else {
-            emit("✗ Could not create listener on port \(port).")
             client.close()
+            fail("Could not create listener on port \(port).")
             return
         }
 
@@ -158,7 +175,7 @@ final class RTLTCPServer {
                     self.emit("  Enter as the rtl_tcp source in your SDR client:")
                     for ip in ips { self.emit("    • \(ip):\(self.port)") }
                 }
-                self.notifyStatus(true)
+                self.notify(.started)
             case .failed(let error):
                 self.emit("✗ Listener error: \(error)")
                 self.doStop()
@@ -183,7 +200,7 @@ final class RTLTCPServer {
         }
         client.close()
         emit("rtl_tcp server stopped.")
-        notifyStatus(false)
+        notify(.stopped)
     }
 
     // MARK: - Connection handling
@@ -206,6 +223,7 @@ final class RTLTCPServer {
             switch state {
             case .ready:
                 self.emit("Client connected: \(conn.endpoint)")
+                self.notify(.clientConnected(RTLTCPServer.host(of: conn.endpoint)))
                 self.onClientReady(conn)
             case .failed(let error):
                 self.emit("Client connection error: \(error)")
@@ -245,6 +263,7 @@ final class RTLTCPServer {
         guard connection === conn else { return }
         dropClient(conn)
         emit("Client disconnected — waiting for a new connection.")
+        notify(.clientDisconnected)
     }
 
     /// Closes the current client's socket and stops the IQ stream.
@@ -389,9 +408,11 @@ final class RTLTCPServer {
         case Cmd.setFrequency:
             client.call(kRTLSDRMethodSetCenterFreq, p64)
             emit("cmd: frequency \(param) Hz")
+            notify(.frequency(param))
         case Cmd.setSampleRate:
             client.call(kRTLSDRMethodSetSampleRate, p64)
             emit("cmd: sample rate \(param) Hz")
+            notify(.sampleRate(param))
         case Cmd.setGainMode:
             client.call(kRTLSDRMethodSetTunerGainMode, p64)
             emit("cmd: gain mode \(param == 0 ? "auto" : "manual")")
@@ -447,6 +468,18 @@ final class RTLTCPServer {
         case 5, 6: return 29      // R820T / R828D
         default:   return 0
         }
+    }
+
+    /// The client's address without its port, for display.
+    private static func host(of endpoint: NWEndpoint) -> String {
+        if case .hostPort(let host, _) = endpoint {
+            switch host {
+            case .ipv4(let a): return "\(a)"
+            case .ipv6(let a): return "\(a)"
+            default:           return "\(host)"
+            }
+        }
+        return "\(endpoint)"
     }
 
     /// IPv4 addresses of the Wi-Fi / Ethernet interfaces, for display.
