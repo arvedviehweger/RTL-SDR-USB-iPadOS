@@ -1,3 +1,6 @@
 [submodule "third_party/librtlsdr"]
 	path = third_party/librtlsdr
 	url = https://github.com/librtlsdr/librtlsdr.git
+[submodule "third_party/gnuradio4-blocks"]
+	path = third_party/gnuradio4-blocks
+	url = https://github.com/gnuradio/gnuradio4-blocks.git
