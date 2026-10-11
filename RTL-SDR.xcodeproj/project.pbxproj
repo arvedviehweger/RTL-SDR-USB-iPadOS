@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		7A1C2E3F4B5D6A7B8C9D0E1F /* usb_driverkit.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C2E3F4B5D6A7B8C9D0E20 /* usb_driverkit.cpp */; };
+		D1CE00000000000000000011 /* LICENSE in Copy Licenses */ = {isa = PBXBuildFile; fileRef = D1CE00000000000000000001 /* LICENSE */; };
+		D1CE00000000000000000012 /* NOTICE in Copy Licenses */ = {isa = PBXBuildFile; fileRef = D1CE00000000000000000002 /* NOTICE */; };
+		D1CE00000000000000000013 /* LICENSE.webrtlsdr in Copy Licenses */ = {isa = PBXBuildFile; fileRef = D1CE00000000000000000003 /* LICENSE.webrtlsdr */; };
+		D1CE00000000000000000014 /* LICENSE in Copy gnuradio4-blocks License */ = {isa = PBXBuildFile; fileRef = D1CE00000000000000000004 /* LICENSE */; };
 		F8E4131D2FBC3EE400BA74C0 /* DriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E4131C2FBC3EE400BA74C0 /* DriverKit.framework */; };
 		F8E413452FBDDAD200BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F8E413A42FC0F54D00BA74C0 /* USBDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E413A32FC0F54D00BA74C0 /* USBDriverKit.framework */; };
@@ -26,6 +30,30 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		D1CE00000000000000000021 /* Copy Licenses */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Licenses;
+			dstSubfolderSpec = 7;
+			files = (
+				D1CE00000000000000000011 /* LICENSE in Copy Licenses */,
+				D1CE00000000000000000012 /* NOTICE in Copy Licenses */,
+				D1CE00000000000000000013 /* LICENSE.webrtlsdr in Copy Licenses */,
+			);
+			name = "Copy Licenses";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1CE00000000000000000022 /* Copy gnuradio4-blocks License */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "Licenses/gnuradio4-blocks";
+			dstSubfolderSpec = 7;
+			files = (
+				D1CE00000000000000000014 /* LICENSE in Copy gnuradio4-blocks License */,
+			);
+			name = "Copy gnuradio4-blocks License";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F8E413482FBDDAD200BA74C0 /* Embed System Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -44,6 +72,10 @@
 		7A1C2E3F4B5D6A7B8C9D0E21 /* usb_driverkit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = usb_driverkit.h; sourceTree = "<group>"; };
 		7A1C2E3F4B5D6A7B8C9D0E22 /* gnuradio4-blocks */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "gnuradio4-blocks"; path = "third_party/gnuradio4-blocks"; sourceTree = "<group>"; };
 		CCAC8BFACBF94EFB85189D60 /* include */ = {isa = PBXFileReference; lastKnownFileType = folder; path = include; sourceTree = "<group>"; };
+		D1CE00000000000000000001 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = SOURCE_ROOT; };
+		D1CE00000000000000000002 /* NOTICE */ = {isa = PBXFileReference; lastKnownFileType = text; path = NOTICE; sourceTree = SOURCE_ROOT; };
+		D1CE00000000000000000003 /* LICENSE.webrtlsdr */ = {isa = PBXFileReference; lastKnownFileType = text; name = LICENSE.webrtlsdr; path = third_party/LICENSE.webrtlsdr; sourceTree = SOURCE_ROOT; };
+		D1CE00000000000000000004 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; name = LICENSE; path = "third_party/gnuradio4-blocks/LICENSE"; sourceTree = SOURCE_ROOT; };
 		F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = "com.m0kds.RTL-SDR-Host.driver.dext"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8E4131C2FBC3EE400BA74C0 /* DriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DriverKit.framework; path = Library/Frameworks/DriverKit.framework; sourceTree = DEVELOPER_DIR; };
 		F8E4132F2FBDDA5E00BA74C0 /* RTL-SDR Host.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RTL-SDR Host.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -130,6 +162,17 @@
 			path = Shim;
 			sourceTree = "<group>";
 		};
+		D1CE00000000000000000031 /* Licenses */ = {
+			isa = PBXGroup;
+			children = (
+				D1CE00000000000000000001 /* LICENSE */,
+				D1CE00000000000000000002 /* NOTICE */,
+				D1CE00000000000000000003 /* LICENSE.webrtlsdr */,
+				D1CE00000000000000000004 /* LICENSE */,
+			);
+			name = Licenses;
+			sourceTree = "<group>";
+		};
 		F8E4130F2FBC3EE400BA74C0 = {
 			isa = PBXGroup;
 			children = (
@@ -137,6 +180,7 @@
 				F8E413302FBDDA5E00BA74C0 /* RTL-SDR Host */,
 				CC2A53D8A1DB437A9AFEDA04 /* Shim */,
 				7A1C2E3F4B5D6A7B8C9D0E22 /* gnuradio4-blocks */,
+				D1CE00000000000000000031 /* Licenses */,
 				F8E4131B2FBC3EE400BA74C0 /* Frameworks */,
 				F8E4131A2FBC3EE400BA74C0 /* Products */,
 			);
@@ -205,6 +249,8 @@
 				F8E4132B2FBDDA5E00BA74C0 /* Sources */,
 				F8E4132C2FBDDA5E00BA74C0 /* Frameworks */,
 				F8E4132D2FBDDA5E00BA74C0 /* Resources */,
+				D1CE00000000000000000021 /* Copy Licenses */,
+				D1CE00000000000000000022 /* Copy gnuradio4-blocks License */,
 				F8E413482FBDDAD200BA74C0 /* Embed System Extensions */,
 			);
 			buildRules = (

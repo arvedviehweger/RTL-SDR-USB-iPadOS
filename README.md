@@ -96,7 +96,7 @@ third_party/LICENSE.webrtlsdr       Apache-2.0 text for the webrtlsdr port
 RTL-SDR Host/                       ← host application target
 ├── RTLSDRHostApp.swift             SwiftUI app, sidebar / tab layout
 ├── ReceiverModel.swift             device state; server and test share it
-├── Views/                          Network, Diagnostics
+├── Views/                          Network, Diagnostics, About + licenses
 ├── RTLSDRClient.swift              wraps the IOKit user client
 ├── RTLTCPServer.swift              rtl_tcp-compatible NWListener server
 ├── BackgroundAudioKeeper.swift     audio-mode keep-alive
@@ -146,7 +146,7 @@ RTL-SDR Host/                       ← host application target
 
 ## Usage
 
-The app has two sections:
+The app has three sections:
 
 - **Network.** Turns on the rtl_tcp-compatible TCP server on port `1234` and
   shows the iPad's Wi-Fi address(es), each with a copy button. In any SDR
@@ -160,6 +160,9 @@ The app has two sections:
   connection test: it opens the user client, fetches the device info,
   configures the device, streams for one second and reports whether IQ bytes
   arrived in the shared ring buffer. A health check for the whole pipeline.
+- **About.** Version, source code and the licenses of all components. The
+  texts are the repository's `LICENSE`, `NOTICE` and third-party license
+  files, copied into the app bundle by the "Copy Licenses" build phases.
 
 The server and the test share the receiver, so only one of them runs at a
 time.

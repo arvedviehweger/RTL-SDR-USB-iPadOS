@@ -25,7 +25,7 @@ struct RTLSDRHostApp: App {
 
 struct RootView: View {
 
-    enum Page: String { case server, diagnostics }
+    enum Page: String { case server, diagnostics, about }
 
     @SceneStorage("page") private var selection = Page.server
 
@@ -36,6 +36,9 @@ struct RootView: View {
             }
             Tab("Diagnostics", systemImage: "stethoscope", value: .diagnostics) {
                 NavigationStack { DiagnosticsView() }
+            }
+            Tab("About", systemImage: "info.circle", value: .about) {
+                NavigationStack { AboutView() }
             }
         }
         .tabViewStyle(.sidebarAdaptable)
