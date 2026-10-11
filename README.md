@@ -16,15 +16,6 @@ the IQ samples, and serves them over the network so that existing SDR clients
 on any device (SDR++, GQRX, SDRangel, CubicSDR, SDR#, …) can use the iPad's
 RTL-SDR exactly as if it were attached to a PC running `rtl_tcp`.
 
-`RTL2832Device` is built **unmodified** from upstream, included as a git
-submodule. The dext supplies the platform underneath it instead: a USB
-transport on top of USBDriverKit and a `<print>` that logs to `os_log`.
-No GPL-licensed third-party code is involved: the earlier
-`librtlsdr`-based driver has been replaced.
-
-The `librtlsdr`-based predecessor was verified with R820T2 & E4000 tuners;
-this driver still has to be verified on hardware.
-
 ## Features
 
 - Tuners: R820T / R820T2 / R860, R828D (including the RTL-SDR Blog V4 with
@@ -232,6 +223,10 @@ tuners do not support it. Same behaviour as upstream `rtl_tcp`.
 
 ## Status and known limitations
 
+- Verified on hardware with an R820T2 dongle: streaming, tuning, auto and
+  manual gain, RTL AGC, rtl_tcp clients (welle.io with DAB+, FM) and
+  unplugging / replugging while streaming. E4000, R828D, the RTL-SDR Blog V4,
+  direct sampling and the bias tee are not verified yet.
 - Only one TCP client at a time is served. A new connection replaces the
   current one, so a client that vanished without closing its socket cannot
   block reconnects.
