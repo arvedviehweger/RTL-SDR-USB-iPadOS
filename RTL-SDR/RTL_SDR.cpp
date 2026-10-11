@@ -64,6 +64,10 @@
 /* How long StopStream waits for the aborted transfers. */
 #define RTLSDR_STREAM_WAIT_MS 3000
 
+/* 1: log every user client command with its argument and result (for
+ * hardware tests). 0: log StartStream / StopStream only. */
+#define RTLSDR_LOG_COMMANDS   1
+
 /* "MARKETING_VERSION (CURRENT_PROJECT_VERSION)" of this build, passed in by
  * GCC_PREPROCESSOR_DEFINITIONS. Reported to the host app, which can tell from
  * it whether iPadOS still runs an older staged copy of the dext. */
@@ -521,6 +525,39 @@ IMPL(RTL_SDR, ReadComplete)
  * MARK: - Local entry points for RTL_SDR_UserClient
  * ======================================================================== */
 
+/* Indexed by kRTLSDRMethod*, for the log. */
+static const char *const kRTLSDRCommandNames[] = {
+    "StartStream", "StopStream", "SetCenterFreq", "SetSampleRate",
+    "SetTunerGainMode", "SetTunerGain", "SetAgcMode", "SetFreqCorrection",
+    "SetTunerBandwidth", "SetTestmode", "SetDirectSampling", "SetBiasTee",
+    "ResetBuffer", "SetGainByIndex", "GetTunerType", "GetDeviceInfo",
+    "SetOffsetTuning",
+};
+static_assert(sizeof(kRTLSDRCommandNames) / sizeof(kRTLSDRCommandNames[0]) == kRTLSDRMethodCount,
+              "one name per kRTLSDRMethod* selector");
+
+static void RTLSDR_LogCommand(uint32_t selector, uint64_t arg, int r, uint64_t out)
+{
+    const char *name = (selector < kRTLSDRMethodCount) ? kRTLSDRCommandNames[selector] : "unknown";
+    switch (selector) {
+    case kRTLSDRMethodStartStream:
+    case kRTLSDRMethodStopStream:
+    case kRTLSDRMethodResetBuffer:
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] %{public}s -> %d", name, r);
+        break;
+    case kRTLSDRMethodGetTunerType:
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] %{public}s -> %llu", name, out);
+        break;
+    case kRTLSDRMethodSetTunerGain:             /* signed: tenths of a dB, ppm */
+    case kRTLSDRMethodSetFreqCorrection:
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] %{public}s(%d) -> %d", name, (int)(int32_t)arg, r);
+        break;
+    default:
+        os_log(OS_LOG_DEFAULT, "[rtlsdr] %{public}s(%llu) -> %d", name, arg, r);
+        break;
+    }
+}
+
 kern_return_t
 RTL_SDR::HandleScalarCommand(uint32_t selector, uint64_t arg, uint64_t *result)
 {
@@ -537,11 +574,9 @@ RTL_SDR::HandleScalarCommand(uint32_t selector, uint64_t arg, uint64_t *result)
         switch (selector) {
         case kRTLSDRMethodStartStream:
             r = RTLSDR_StartStream(t);
-            os_log(OS_LOG_DEFAULT, "[rtlsdr] StartStream returned %d", r);
             break;
         case kRTLSDRMethodStopStream:
             r = RTLSDR_StopStream(t);
-            os_log(OS_LOG_DEFAULT, "[rtlsdr] StopStream returned %d", r);
             break;
         case kRTLSDRMethodSetCenterFreq:
             r = RTL2832Radio_SetCenterFreq(d, arg);
@@ -590,6 +625,10 @@ RTL_SDR::HandleScalarCommand(uint32_t selector, uint64_t arg, uint64_t *result)
             break;
         }
     });
+
+    if (RTLSDR_LOG_COMMANDS ||
+        selector == kRTLSDRMethodStartStream || selector == kRTLSDRMethodStopStream)
+        RTLSDR_LogCommand(selector, arg, r, out);
 
     if (result && selector != kRTLSDRMethodGetTunerType)
         out = (uint64_t)(int64_t)r;
