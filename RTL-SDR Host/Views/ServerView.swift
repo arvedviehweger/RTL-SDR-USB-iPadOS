@@ -37,7 +37,8 @@ struct ServerView: View {
                         }
                     }
                 }
-                .disabled(model.activity == .test || model.serverState == .starting)
+                .disabled(model.activity == .test || model.activity == .radio
+                          || model.serverState == .starting)
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
                     if let error = model.serverError {
@@ -46,6 +47,8 @@ struct ServerView: View {
                     }
                     if model.activity == .test {
                         Text("The connection test is using the receiver.")
+                    } else if model.activity == .radio {
+                        Text("The radio is using the receiver. Pause it to start the server.")
                     }
                     Text("Shares the receiver with SDR apps such as SDR++, GQRX or SDRangel, on this iPad or on other devices in your network. The server keeps running when you switch to another app.")
                 }

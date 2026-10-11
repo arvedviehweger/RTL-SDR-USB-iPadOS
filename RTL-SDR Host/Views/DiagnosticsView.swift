@@ -58,6 +58,8 @@ struct DiagnosticsView: View {
             } footer: {
                 if model.activity == .server {
                     Text("Turn off the network server to run the test.")
+                } else if model.activity == .radio {
+                    Text("Pause the radio to run the test.")
                 } else {
                     Text("Configures the receiver, streams for one second and checks that samples arrive.")
                 }

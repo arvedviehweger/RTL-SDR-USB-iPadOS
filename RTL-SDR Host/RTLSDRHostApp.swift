@@ -25,12 +25,15 @@ struct RTLSDRHostApp: App {
 
 struct RootView: View {
 
-    enum Page: String { case server, diagnostics, about }
+    enum Page: String { case radio, server, diagnostics, about }
 
-    @SceneStorage("page") private var selection = Page.server
+    @SceneStorage("page") private var selection = Page.radio
 
     var body: some View {
         TabView(selection: $selection) {
+            Tab("Radio", systemImage: "radio", value: .radio) {
+                NavigationStack { RadioView() }
+            }
             Tab("Network", systemImage: "network", value: .server) {
                 NavigationStack { ServerView() }
             }

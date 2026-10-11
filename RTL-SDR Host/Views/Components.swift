@@ -123,6 +123,16 @@ enum Format {
         (Double(hz) / 1e6).formatted(.number.precision(.fractionLength(3))) + " MHz"
     }
 
+    /// "98.4 MHz", a broadcast station.
+    static func station(_ hz: UInt32) -> String {
+        mhz(hz) + " MHz"
+    }
+
+    /// "98.4", the number alone.
+    static func mhz(_ hz: UInt32) -> String {
+        (Double(hz) / 1e6).formatted(.number.precision(.fractionLength(1)))
+    }
+
     /// "2.048 MS/s"
     static func sampleRate(_ hz: UInt32) -> String {
         (Double(hz) / 1e6).formatted(.number.precision(.fractionLength(3))) + " MS/s"

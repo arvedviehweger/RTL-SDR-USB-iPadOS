@@ -14,7 +14,8 @@ host app opens an
 `IOUserClient` to that extension, maps a shared-memory ring buffer to receive
 the IQ samples, and serves them over the network so that existing SDR clients
 on any device (SDR++, GQRX, SDRangel, CubicSDR, SDR#, …) can use the iPad's
-RTL-SDR exactly as if it were attached to a PC running `rtl_tcp`.
+RTL-SDR exactly as if it were attached to a PC running `rtl_tcp`. It also has
+a built-in FM radio.
 
 ## Features
 
@@ -30,6 +31,9 @@ RTL-SDR exactly as if it were attached to a PC running `rtl_tcp`.
   `0x01–0x0E` plus `0x0A` (offset tuning) implemented.
 - Survives backgrounding the app: audio background mode + idle-timer disable
   keep the server running when the screen locks or another app is opened.
+- FM broadcast radio in stereo with favorites, reception indicator, Lock
+  Screen and Control Center controls and AirPlay / Bluetooth output. The
+  demodulator is plain Swift on Accelerate.
 - One-shot self-test that exercises the whole stack (USB → dext → ring
   buffer → app → IQ) and shows the result as a checklist, with the detailed
   log one tap away.
@@ -95,8 +99,12 @@ third_party/LICENSE.webrtlsdr       Apache-2.0 text for the webrtlsdr port
 
 RTL-SDR Host/                       ← host application target
 ├── RTLSDRHostApp.swift             SwiftUI app, sidebar / tab layout
-├── ReceiverModel.swift             device state; server and test share it
-├── Views/                          Network, Diagnostics, About + licenses
+├── ReceiverModel.swift             device state; radio, server and test share it
+├── Views/                          Radio, Network, Diagnostics, About + licenses
+├── Radio/
+│   ├── FMDemodulator.swift         IQ → stereo FM audio (Accelerate)
+│   ├── FMReceiver.swift            device control, audio output, clock drift
+│   └── NowPlaying.swift            Lock Screen / Control Center
 ├── RTLSDRClient.swift              wraps the IOKit user client
 ├── RTLTCPServer.swift              rtl_tcp-compatible NWListener server
 ├── BackgroundAudioKeeper.swift     audio-mode keep-alive
@@ -104,6 +112,7 @@ RTL-SDR Host/                       ← host application target
 ├── RTL-SDR-Host-Bridging-Header.h
 ├── RTLSDRShared.h                  copy of the dext IPC contract
 ├── Info.plist                      UIBackgroundModes=audio + usage strings
+├── PrivacyInfo.xcprivacy           privacy manifest (UserDefaults: CA92.1)
 ├── RTL-SDR Host.entitlements       communicates-with-drivers
 └── Assets / LaunchScreen.storyboard
 ```
@@ -146,8 +155,17 @@ RTL-SDR Host/                       ← host application target
 
 ## Usage
 
-The app has three sections:
+The app has four sections:
 
+- **Radio.** An FM broadcast receiver. Tune with the scale (drag it), the
+  arrow buttons or a favorite; the star saves the current station. Playback
+  continues in the background and shows up on the Lock Screen and in Control
+  Center, whose track buttons switch between favorites. The bars show the
+  reception quality, estimated from how much the signal's envelope fluctuates
+  (an FM signal's is constant). Stereo blends to mono as the reception gets
+  weak. The options menu switches stereo off and sets the de-emphasis (50 µs,
+  or 75 µs in the Americas and South Korea; picked from the region by
+  default).
 - **Network.** Turns on the rtl_tcp-compatible TCP server on port `1234` and
   shows the iPad's Wi-Fi address(es), each with a copy button. In any SDR
   client, add an rtl_tcp source pointing at `<iPad-IP>:1234`, or at
@@ -164,12 +182,35 @@ The app has three sections:
   texts are the repository's `LICENSE`, `NOTICE` and third-party license
   files, copied into the app bundle by the "Copy Licenses" build phases.
 
-The server and the test share the receiver, so only one of them runs at a
-time.
+The radio, the server and the test share the receiver, so only one of them
+runs at a time.
 
 While the server is running the app stays alive in the background (audio
 background mode + auto-lock disabled), so switching to another app or letting
 the screen turn off does not interrupt the stream.
+
+### How the radio works
+
+The radio tunes the RTL-SDR 240 kHz (a quarter of the sample rate) above the
+station, so the tuner's DC spike and IQ image stay out of the channel, and
+samples at 960 kS/s. `FMDemodulator` shifts the station to 0 Hz and filters
+the channel in one complex FIR filter (the shift by fs/4 folds into the taps
+because the filter keeps every 4th sample) and demodulates at 240 kS/s.
+From the multiplex it
+
+- locks a PLL to the 19 kHz pilot and demodulates L−R with the coherent
+  38 kHz subcarrier (the standard puts the zero crossings of pilot and
+  subcarrier together). L−R gets 4 % more gain, the loss of the phase
+  discriminator at 38 kHz; without that the separation stops at about
+  33 dB, with it it reaches 56 dB on test signals. Between 28 and 18 dB
+  carrier-to-noise ratio the audio blends to mono;
+- resamples, low-pass filters both channels to 48 kHz and applies the
+  de-emphasis.
+
+The RTL-SDR's crystal and the audio hardware run on different clocks. The
+audio buffer between them is held at about 150 ms by stretching the signal by
+up to ±0.1 % in the resampler, which runs on the 240 kS/s signal where the
+interpolation is practically flat across the audio band.
 
 ## Porting notes (`RTL2832Device` → USBDriverKit)
 
@@ -280,7 +321,8 @@ Third-party code in the driver extension:
 - The [Osmocom rtl-sdr](https://osmocom.org/projects/rtl-sdr/wiki) project and
   the `librtlsdr` authors, whose reverse engineering every RTL-SDR driver
   builds on.
-- Apple's USBDriverKit, IOKit, Network and AVFoundation frameworks, and the
+- Apple's USBDriverKit, IOKit, Network, AVFoundation, Accelerate and
+  MediaPlayer frameworks, and the
   WWDC '22 "Bring your driver to iPad with DriverKit" session that made any
   of this possible on iPadOS.
 - DanBurkhardt's
