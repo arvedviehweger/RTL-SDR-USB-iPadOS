@@ -6,8 +6,8 @@
 //
 //  DriverKit interface driver for the RTL2832U. Matches IOUSBHostInterface
 //  (see Info.plist personality "RTL-SDR Interface") and drives the device
-//  through the unmodified librtlsdr, which reaches USBDriverKit through the
-//  libusb shim in Shim/.
+//  through the unmodified RTL2832Device from gnuradio4-blocks, which reaches
+//  USBDriverKit through the USB shim in Shim/.
 //
 
 #ifndef RTL_SDR_h
@@ -43,10 +43,9 @@ public:
     NewUserClient(uint32_t type, IOUserClient ** userClient) override;
 
     //  Asynchronous completion callback for the bulk-IN (IQ) endpoint 0x81.
-    //  One OSAction is created per libusb transfer; see
-    //  Shim/libusb_driverkit.cpp. Runs on the "Stream" queue, where the libusb
-    //  event loop runs, so IQ keeps flowing while control commands occupy the
-    //  default queue.
+    //  One OSAction is created per stream transfer; see RTL_SDR.cpp. Runs on
+    //  the "Stream" queue, so IQ keeps flowing while control commands occupy
+    //  the default queue.
     virtual void
     ReadComplete(OSAction * action,
                  IOReturn  status,
