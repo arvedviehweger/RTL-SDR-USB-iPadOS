@@ -138,6 +138,10 @@ final class WaterfallView: UIView {
         }
     }()
 
+    /// The noise floor's colour: the scale starts 5 dB below it. History
+    /// shifted in after tuning gets it, so no black patches appear.
+    private static let floorColor = palette[Int(5 / range * 255)]
+
     private let line = CAShapeLayer()
     private let fill = CAShapeLayer()
     private let waterfall = CALayer()
@@ -247,13 +251,13 @@ final class WaterfallView: UIView {
         for r in 0..<WaterfallView.rows {
             let row = pixels.advanced(by: r * n)
             if abs(s) >= n {
-                row.update(repeating: WaterfallView.black, count: n)
+                row.update(repeating: WaterfallView.floorColor, count: n)
             } else if s > 0 {
                 row.update(from: row.advanced(by: s), count: n - s)
-                row.advanced(by: n - s).update(repeating: WaterfallView.black, count: s)
+                row.advanced(by: n - s).update(repeating: WaterfallView.floorColor, count: s)
             } else {
                 row.advanced(by: -s).update(from: row, count: n + s)
-                row.update(repeating: WaterfallView.black, count: -s)
+                row.update(repeating: WaterfallView.floorColor, count: -s)
             }
         }
     }

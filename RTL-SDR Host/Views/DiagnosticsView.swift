@@ -18,7 +18,6 @@ struct DiagnosticsView: View {
             Section {
                 ReceiverRow()
                 if let receiver = model.receiver {
-                    LabeledContent("Tuner", value: receiver.tuner)
                     LabeledContent("Driver Version",
                                    value: receiver.driverVersion.isEmpty ? "Unknown"
                                                                          : receiver.driverVersion)
