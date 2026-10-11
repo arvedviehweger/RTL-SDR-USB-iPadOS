@@ -4,8 +4,8 @@
 //
 //  Plays an FM broadcast station from the RTL-SDR: configures the receiver,
 //  pulls IQ from the shared ring buffer, demodulates it and feeds the stereo
-//  audio to an AVAudioEngine. Reports reception quality and stereo a few
-//  times per second.
+//  audio to an AVAudioEngine. Reports reception quality, stereo and RDS a
+//  few times per second.
 //
 //  The RTL-SDR's crystal and the audio hardware run on different clocks, so
 //  the audio buffer between them slowly fills up or drains. The receiver
@@ -27,6 +27,8 @@ nonisolated final class FMReceiver: @unchecked Sendable {
         var frequency: UInt32           // the station this describes
         var quality = 0.0               // 0 … 1
         var isStereo = false
+        var stationName: String?        // RDS PS
+        var radioText: String?          // RDS RT
     }
 
     enum Event: Sendable {
@@ -213,7 +215,9 @@ nonisolated final class FMReceiver: @unchecked Sendable {
             untilReport = FMDemodulator.audioRate / 4
             notify(.reception(Reception(frequency: frequency,
                                         quality: demodulator.quality,
-                                        isStereo: demodulator.isStereo)))
+                                        isStereo: demodulator.isStereo,
+                                        stationName: demodulator.rds.parser.stationName,
+                                        radioText: demodulator.rds.parser.radioText)))
         }
 
         queue.async { self.pump(id) }

@@ -31,9 +31,9 @@ a built-in FM radio.
   `0x01–0x0E` plus `0x0A` (offset tuning) implemented.
 - Survives backgrounding the app: audio background mode + idle-timer disable
   keep the server running when the screen locks or another app is opened.
-- FM broadcast radio in stereo with favorites, reception indicator, Lock
-  Screen and Control Center controls and AirPlay / Bluetooth output. The
-  demodulator is plain Swift on Accelerate.
+- FM broadcast radio in stereo with RDS (station name and radio text),
+  favorites, reception indicator, Lock Screen and Control Center controls and
+  AirPlay / Bluetooth output. The demodulator is plain Swift on Accelerate.
 - One-shot self-test that exercises the whole stack (USB → dext → ring
   buffer → app → IQ) and shows the result as a checklist, with the detailed
   log one tap away.
@@ -103,6 +103,7 @@ RTL-SDR Host/                       ← host application target
 ├── Views/                          Radio, Network, Diagnostics, About + licenses
 ├── Radio/
 │   ├── FMDemodulator.swift         IQ → stereo FM audio (Accelerate)
+│   ├── RDSDecoder.swift            RDS: station name and radio text
 │   ├── FMReceiver.swift            device control, audio output, clock drift
 │   └── NowPlaying.swift            Lock Screen / Control Center
 ├── RTLSDRClient.swift              wraps the IOKit user client
@@ -158,14 +159,15 @@ RTL-SDR Host/                       ← host application target
 The app has four sections:
 
 - **Radio.** An FM broadcast receiver. Tune with the scale (drag it), the
-  arrow buttons or a favorite; the star saves the current station. Playback
-  continues in the background and shows up on the Lock Screen and in Control
-  Center, whose track buttons switch between favorites. The bars show the
-  reception quality, estimated from how much the signal's envelope fluctuates
-  (an FM signal's is constant). Stereo blends to mono as the reception gets
-  weak. The options menu switches stereo off and sets the de-emphasis (50 µs,
-  or 75 µs in the Americas and South Korea; picked from the region by
-  default).
+  arrow buttons or a favorite; the star saves the current station. The RDS
+  station name and radio text appear above and below the frequency, and
+  favorites remember their station names. Playback continues in the background
+  and shows up on the Lock Screen and in Control Center, whose track buttons
+  switch between favorites. The bars show the reception quality, estimated
+  from how much the signal's envelope fluctuates (an FM signal's is constant).
+  Stereo blends to mono as the reception gets weak. The options menu switches
+  stereo off and sets the de-emphasis (50 µs, or 75 µs in the Americas and
+  South Korea; picked from the region by default).
 - **Network.** Turns on the rtl_tcp-compatible TCP server on port `1234` and
   shows the iPad's Wi-Fi address(es), each with a copy button. In any SDR
   client, add an rtl_tcp source pointing at `<iPad-IP>:1234`, or at
@@ -204,6 +206,9 @@ From the multiplex it
   discriminator at 38 kHz; without that the separation stops at about
   33 dB, with it it reaches 56 dB on test signals. Between 28 and 18 dB
   carrier-to-noise ratio the audio blends to mono;
+- decodes RDS: mixes down from 57 kHz, tracks the carrier with a Costas
+  loop (so mono stations without a pilot work too), finds the bit clock on
+  the biphase matched filter and synchronises on the blocks' checkwords;
 - resamples, low-pass filters both channels to 48 kHz and applies the
   de-emphasis.
 

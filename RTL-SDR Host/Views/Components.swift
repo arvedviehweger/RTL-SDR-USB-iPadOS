@@ -133,6 +133,28 @@ enum Format {
         (Double(hz) / 1e6).formatted(.number.precision(.fractionLength(1)))
     }
 
+    /// Many stations separate title and artist in the radio text with a
+    /// run of spaces; that becomes " – " unless a separator is already
+    /// there.
+    static func radioText(_ text: String) -> String {
+        let separators = "-–—/:|·"
+        var result = ""
+        var spaces = 0
+        for ch in text {
+            if ch == " " {
+                spaces += 1
+                continue
+            }
+            if spaces > 0 {
+                let marked = separators.contains(ch) || result.last.map { separators.contains($0) } ?? false
+                result += spaces >= 2 && !marked ? " – " : " "
+                spaces = 0
+            }
+            result.append(ch)
+        }
+        return result
+    }
+
     /// "2.048 MS/s"
     static func sampleRate(_ hz: UInt32) -> String {
         (Double(hz) / 1e6).formatted(.number.precision(.fractionLength(3))) + " MS/s"

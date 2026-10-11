@@ -68,6 +68,11 @@ final class ReceiverModel {
     private(set) var favorites: [UInt32]
     private(set) var signalQuality = 0.0
     private(set) var isStereo = false
+    /// RDS station name and radio text of the station playing.
+    private(set) var stationName: String?
+    private(set) var radioText: String?
+    /// The last RDS station name seen on each frequency.
+    private(set) var stationNames: [UInt32: String]
     var deemphasis: Deemphasis {
         didSet {
             UserDefaults.standard.set(deemphasis.rawValue, forKey: Keys.deemphasis)
@@ -113,6 +118,7 @@ final class ReceiverModel {
         static let favorites = "radio.favorites"
         static let deemphasis = "radio.deemphasis"
         static let stereo = "radio.stereo"
+        static let names = "radio.names"
     }
 
     init() {
@@ -125,6 +131,10 @@ final class ReceiverModel {
         deemphasis = defaults.string(forKey: Keys.deemphasis).flatMap(Deemphasis.init)
             ?? .forCurrentRegion
         stereoEnabled = defaults.object(forKey: Keys.stereo) as? Bool ?? true
+        stationNames = (defaults.dictionary(forKey: Keys.names) as? [String: String] ?? [:])
+            .reduce(into: [:]) { names, entry in
+                if let hz = UInt32(entry.key) { names[hz] = entry.value }
+            }
 
         server.log = { [weak self] line in self?.appendServerLog(line) }
         server.event = { [weak self] event in self?.handle(event) }
@@ -175,6 +185,9 @@ final class ReceiverModel {
 
     var isFavorite: Bool { favorites.contains(frequency) }
 
+    /// The station's name from RDS, or the one last seen on this frequency.
+    var displayName: String? { stationName ?? stationNames[frequency] }
+
     func playRadio() {
         guard activity == .idle, radioState == .stopped else { return }
         radioError = nil
@@ -209,6 +222,8 @@ final class ReceiverModel {
         let f = min(max(rounded, ReceiverModel.band.lowerBound), ReceiverModel.band.upperBound)
         guard f != frequency else { return }
         frequency = f
+        stationName = nil
+        radioText = nil
         isStereo = false
         UserDefaults.standard.set(Int(f), forKey: Keys.frequency)
         if activity == .radio { fm.tune(f) }
@@ -268,7 +283,22 @@ final class ReceiverModel {
             guard reception.frequency == frequency, radioState == .playing else { return }
             signalQuality = reception.quality
             isStereo = reception.isStereo
+            let text = reception.radioText.map { Format.radioText($0) }
+            if reception.stationName != stationName || text != radioText {
+                stationName = reception.stationName
+                radioText = text
+                if let name = reception.stationName, stationNames[frequency] != name {
+                    stationNames[frequency] = name
+                    saveStationNames()
+                }
+                updateNowPlaying()
+            }
         }
+    }
+
+    private func saveStationNames() {
+        let stored = Dictionary(uniqueKeysWithValues: stationNames.map { (String($0.key), $0.value) })
+        UserDefaults.standard.set(stored, forKey: Keys.names)
     }
 
     private func setUpNowPlaying() {
@@ -282,8 +312,9 @@ final class ReceiverModel {
 
     private func updateNowPlaying() {
         guard showsNowPlaying else { return }
-        nowPlaying.update(title: Format.station(frequency),
-                          subtitle: String(localized: "FM Radio"),
+        let station = Format.station(frequency)
+        nowPlaying.update(title: displayName ?? station,
+                          subtitle: radioText ?? (displayName == nil ? String(localized: "FM Radio") : station),
                           playing: radioState == .playing,
                           hasFavorites: !favorites.isEmpty)
     }

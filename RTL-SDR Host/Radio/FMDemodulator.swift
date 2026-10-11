@@ -15,6 +15,8 @@
 //        reception gets weak, where stereo turns hissy
 //      → de-emphasis (50 or 75 µs), DC blocker        → audio
 //
+//  The multiplex also feeds the RDS decoder.
+//
 //  Shifting by fs/4 multiplies sample n by j^n. Since the channel filter
 //  then keeps every 4th output, the shift folds into the filter: taps
 //  h[p]·j^p on the unshifted signal. Everything at 960 kS/s is then a plain
@@ -67,6 +69,7 @@ nonisolated final class FMDemodulator {
     private let differenceFilter = FIRDecimator(taps: audioTaps, factor: 5)
     private let resampler = Resampler()
     private let pilot = PilotPLL()
+    let rds = RDSDecoder()
 
     /// False plays mono even when the station sends stereo.
     var stereoEnabled = true
@@ -124,9 +127,10 @@ nonisolated final class FMDemodulator {
         stationChanged()
     }
 
-    /// Forgets what belonged to the previous station: pilot and quality.
+    /// Forgets what belonged to the previous station: pilot, RDS, quality.
     func stationChanged() {
         pilot.reset()
+        rds.reset()
         separation = 0
         moments = nil
     }
@@ -176,6 +180,7 @@ nonisolated final class FMDemodulator {
         difference.withUnsafeMutableBufferPointer { x in
             vDSP_vsmul(x.baseAddress!, 1, &gain, x.baseAddress!, 1, vDSP_Length(n))
         }
+        mpx.withUnsafeBufferPointer { rds.process($0) }
 
         resampledSum.removeAll(keepingCapacity: true)
         resampledDifference.removeAll(keepingCapacity: true)

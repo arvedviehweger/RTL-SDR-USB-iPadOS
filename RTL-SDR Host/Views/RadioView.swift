@@ -115,13 +115,22 @@ private struct StepButtonStyle: ViewModifier {
     }
 }
 
-/// The frequency in large digits, with reception quality and state.
+/// Station name, frequency in large digits, reception and radio text.
 private struct StationDisplay: View {
 
     @Environment(ReceiverModel.self) private var model
 
     var body: some View {
         VStack(spacing: 12) {
+            // Lines keep their height while empty, so nothing jumps when RDS
+            // arrives.
+            Text(model.displayName ?? " ")
+                .font(.title.weight(.semibold))
+                .foregroundStyle(model.stationName == nil ? .secondary : .primary)
+                .lineLimit(1)
+                .contentTransition(.opacity)
+                .animation(.default, value: model.displayName)
+
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(Format.mhz(model.frequency))
                     .font(.system(size: 96, weight: .semibold, design: .rounded))
@@ -148,6 +157,12 @@ private struct StationDisplay: View {
             }
             .font(.headline)
 
+            Text(model.radioText ?? " ")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2, reservesSpace: true)
+                .animation(.default, value: model.radioText)
         }
     }
 
@@ -256,9 +271,17 @@ private struct FavoritesSection: View {
                         Button {
                             model.tune(to: f)
                         } label: {
-                            Text(Format.station(f))
-                                .monospacedDigit()
-                                .frame(maxWidth: .infinity)
+                            VStack(spacing: 2) {
+                                Text(model.stationNames[f] ?? Format.station(f))
+                                    .lineLimit(1)
+                                if model.stationNames[f] != nil {
+                                    Text(Format.station(f))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .monospacedDigit()
+                            .frame(maxWidth: .infinity, minHeight: 36)
                         }
                         .buttonStyle(.bordered)
                         .tint(f == model.frequency ? Color.accentColor : Color.secondary)
