@@ -1,0 +1,45 @@
+//
+//  print
+//  RTL-SDR
+//
+//  Stand-in for C++23 <print> inside the dext. DriverKit's libc++ ships a
+//  <print>, but it writes to stdout / stderr, which DriverKit does not have.
+//  RTL2832Device.hpp (gnuradio4-blocks) uses std::println for its status
+//  messages only; here they go to the unified log.
+//
+//  This directory is searched before the SDK's libc++ headers, so the
+//  unmodified upstream `#include <print>` lands here.
+//
+
+#ifndef RTLSDR_SHIM_PRINT
+#define RTLSDR_SHIM_PRINT
+
+#include <format>
+#include <string>
+#include <utility>
+
+#include <os/log.h>
+
+/* The stream argument of std::println(stderr, ...). DriverKit declares no
+ * stderr of its own. */
+struct rtlsdr_shim_stream {};
+inline constexpr rtlsdr_shim_stream stderr{};
+
+namespace std {
+
+template <class... Args>
+inline void println(format_string<Args...> fmt, Args &&...args)
+{
+    string line = format(fmt, std::forward<Args>(args)...);
+    os_log(OS_LOG_DEFAULT, "%{public}s", line.c_str());
+}
+
+template <class... Args>
+inline void println(const rtlsdr_shim_stream &, format_string<Args...> fmt, Args &&...args)
+{
+    println(fmt, std::forward<Args>(args)...);
+}
+
+} // namespace std
+
+#endif /* RTLSDR_SHIM_PRINT */
