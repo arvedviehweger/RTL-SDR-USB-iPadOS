@@ -11,14 +11,16 @@
 //  Where the code comes from:
 //    * RTL2832Device (gnuradio4-blocks, MIT): demodulator and tuner init,
 //      tuning, gain, sample rate, sample clock correction, buffer reset.
+//    * WebRTLSDRPort.cpp (ported from webrtlsdr, Apache-2.0): bias tee,
+//      direct sampling, tuner standby, R828D input switching and the RTL-SDR
+//      Blog V4's upconverter. This file only calls those functions; it
+//      contains no webrtlsdr code.
 //    * Values kept compatible with librtlsdr, marked "librtlsdr-compatible"
 //      below: the gain step lists, the accepted sample rate ranges, the test
 //      mode register values and the return codes. These are numbers and
 //      behaviour clients rely on; no librtlsdr code is used.
 //    * Everything else - the command mapping, frequency correction of the
 //      tuner, the state handling - is written for this project.
-//
-//  Bias tee and direct sampling are not supported yet.
 //
 
 #include <stdint.h>
@@ -29,6 +31,8 @@
 #include <gnuradio-4.0/sdr/RTL2832Device.hpp>
 
 #include "RTL2832Radio.h"
+#include "WebRTLSDRPort.h"
+#include "usb_driverkit.h"
 
 using gr::blocks::sdr::RTL2832Device;
 using gr::blocks::sdr::TunerType;
@@ -53,11 +57,14 @@ static const int kE4000Gains[] = {
 
 struct RTL2832Radio {
     RTL2832Device dev;
+    bool          blogV4          = false;  /* RTL-SDR Blog V4 (R828D)       */
     uint64_t      centerFreq      = 0;      /* last tuned frequency, 0: none */
     uint32_t      sampleRate      = 0;
     int           ppm             = 0;
     bool          manualGain      = false;
     int           gainTenthDb     = 0;
+    int           directSampling  = 0;      /* 0 off, 1 I-ADC, 2 Q-ADC       */
+    int           r828dInput      = -1;     /* -1: not set yet               */
     bool          bandwidthWarned = false;
 };
 
@@ -114,6 +121,14 @@ int RTL2832Radio_Open(RTL2832Radio **radio)
         return -1;
     }
 
+    const char *manufacturer = "";
+    const char *product = "";
+    usb_driverkit_get_info(nullptr, nullptr, &manufacturer, &product);
+    r->blogV4 = r->dev._tunerType == TunerType::r828d &&
+                WebRTLSDR_IsRtlSdrBlogV4(manufacturer, product);
+    if (r->blogV4)
+        os_log(OS_LOG_DEFAULT, "[rtl2832] RTL-SDR Blog V4: HF upconverter enabled below 28.8 MHz");
+
     if (RTL2832Radio_ApplyGain(r) != 0 ||
         RTL2832Radio_SetSampleRate(r, RTL2832RADIO_DEFAULT_RATE) != 0) {
         delete r;
@@ -134,8 +149,26 @@ void RTL2832Radio_Close(RTL2832Radio *radio)
 
 int RTL2832Radio_SetCenterFreq(RTL2832Radio *r, uint64_t freq)
 {
-    if (auto res = r->dev.setCenterFrequency(RTL2832Radio_Corrected(r, freq)); !res)
-        return RTL2832Radio_Fail("set center frequency", res.error());
+    if (r->directSampling) {
+        if (WebRTLSDR_SetIfFrequency(r->dev, RTL2832Radio_Corrected(r, freq)) != 0)
+            return -1;
+    } else {
+        uint64_t tunerFreq = freq + WebRTLSDR_R828DUpconvert(r->blogV4, freq);
+        double programmed = RTL2832Radio_Corrected(r, tunerFreq);
+
+        if (auto res = r->dev.setCenterFrequency(programmed); !res)
+            return RTL2832Radio_Fail("set center frequency", res.error());
+        if (r->dev._tunerType == TunerType::r828d) {
+            /* the Blog V4's own band filters, for the tuner's LO */
+            if (r->blogV4 &&
+                WebRTLSDR_R8xxSetMux(r->dev, programmed + gr::blocks::sdr::kIfFreq,
+                                     kWebRTLSDRMuxCfgsRtlSdrBlogV4,
+                                     kWebRTLSDRMuxCfgsRtlSdrBlogV4Count) != 0)
+                return -1;
+            if (WebRTLSDR_R828DSelectInput(r->dev, r->blogV4, freq, &r->r828dInput) != 0)
+                return -1;
+        }
+    }
     r->centerFreq = freq;
     return 0;
 }
@@ -156,6 +189,8 @@ int RTL2832Radio_SetSampleRate(RTL2832Radio *r, uint32_t rate)
 int RTL2832Radio_SetTunerGainMode(RTL2832Radio *r, int manual)
 {
     r->manualGain = (manual != 0);
+    if (r->directSampling)
+        return 0;                       /* applied when the tuner is back */
     return RTL2832Radio_ApplyGain(r);
 }
 
@@ -164,6 +199,8 @@ int RTL2832Radio_SetTunerGain(RTL2832Radio *r, int gainTenthDb)
 {
     r->gainTenthDb = gainTenthDb;
     r->manualGain = true;
+    if (r->directSampling)
+        return 0;
     return RTL2832Radio_ApplyGain(r);
 }
 
@@ -227,19 +264,35 @@ int RTL2832Radio_SetTestmode(RTL2832Radio *r, int on)
     return 0;
 }
 
-/* Not supported yet; off is what the dongle does anyway. */
 int RTL2832Radio_SetDirectSampling(RTL2832Radio *r, int mode)
 {
-    (void)r;
-    return (mode == 0) ? 0 : -1;
+    if (mode < 0 || mode > 2)
+        return -1;
+    if (mode == r->directSampling)
+        return 0;
+
+    if (mode) {
+        /* the tuner goes into standby when direct sampling starts */
+        bool closeTuner = (r->directSampling == 0) && RTL2832Radio_IsR82xx(r);
+        if (WebRTLSDR_EnterDirectSampling(r->dev, mode, closeTuner) != 0)
+            return -1;
+        r->directSampling = mode;
+    } else {
+        if (WebRTLSDR_LeaveDirectSampling(r->dev) != 0)
+            return -1;
+        r->directSampling = 0;
+        r->r828dInput = -1;             /* the tuner init reset the input */
+        if (RTL2832Radio_ApplyGain(r) != 0)
+            return -1;
+    }
+    if (r->centerFreq)
+        return RTL2832Radio_SetCenterFreq(r, r->centerFreq);
+    return 0;
 }
 
-/* Not supported yet. */
 int RTL2832Radio_SetBiasTee(RTL2832Radio *r, int on)
 {
-    (void)r;
-    (void)on;
-    return -1;
+    return WebRTLSDR_EnableBiasTee(r->dev, on != 0);
 }
 
 /* librtlsdr-compatible: librtlsdr does not support offset tuning on
