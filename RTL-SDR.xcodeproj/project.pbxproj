@@ -328,6 +328,7 @@
 					"$(SRCROOT)/Shim",
 				);
 				INFOPLIST_FILE = "RTL-SDR/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR USB Driver";
 				INFOPLIST_KEY_OSBundleUsageDescription = "Used for communicating with RTL-SDR";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.m0kds.RTL-SDR-Host.driver";
@@ -367,6 +368,7 @@
 					"$(SRCROOT)/Shim",
 				);
 				INFOPLIST_FILE = "RTL-SDR/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR USB Driver";
 				INFOPLIST_KEY_OSBundleUsageDescription = "Used for communicating with RTL-SDR";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.m0kds.RTL-SDR-Host.driver";
