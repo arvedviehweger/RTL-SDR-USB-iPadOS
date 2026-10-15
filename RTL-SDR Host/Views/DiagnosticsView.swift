@@ -28,7 +28,7 @@ struct DiagnosticsView: View {
             } footer: {
                 if !model.isDevicePresent {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("If the RTL-SDR is plugged in, turn on its driver in Settings › Apps › RTL-SDR-Host.")
+                        Text("If the RTL-SDR is plugged in, turn on its driver in Settings › Apps › RTL-SDR Radio.")
                         Button("Open Settings") {
                             if let url = URL(string: UIApplication.openSettingsURLString) {
                                 openURL(url)

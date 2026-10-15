@@ -144,11 +144,11 @@ RTL-SDR Host/                       ← host application target
    - `Info.plist`: `UIBackgroundModes = [audio]`,
      `NSLocalNetworkUsageDescription`.
 5. **Build & run** the host-app target on a real iPad. The embedded dext is
-   installed automatically. Next go to Settings -> Apps -> RTL-SDR-Host and enable the driver.
+   installed automatically. Next go to Settings -> Apps -> RTL-SDR Radio and enable the driver.
    When you change the dext, bump the build number (`CURRENT_PROJECT_VERSION`)
    before reinstalling. iPadOS keeps running its staged copy of the dext
    while the version stays the same. Replug the RTL-SDR afterwards.
-6. Plug in the RTL-SDR. The dext matches the USB device and starts. You may run the connection test under Diagnostics in the RTL-SDR-Host app. The iPad
+6. Plug in the RTL-SDR. The dext matches the USB device and starts. You may run the connection test under Diagnostics in the RTL-SDR Radio app. The iPad
    console also shows lines like
 
    ```

@@ -561,7 +561,7 @@
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR-Host";
+				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR Radio";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "RTL-SDR USB Driver";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -605,7 +605,7 @@
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR-Host";
+				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR Radio";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "RTL-SDR USB Driver";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
