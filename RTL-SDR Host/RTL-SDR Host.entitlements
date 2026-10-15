@@ -4,7 +4,5 @@
 <dict>
 	<key>com.apple.developer.driverkit.communicates-with-drivers</key>
 	<true/>
-	<key>com.apple.developer.system-extension.install</key>
-	<true/>
 </dict>
 </plist>
