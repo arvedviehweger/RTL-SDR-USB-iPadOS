@@ -16,7 +16,7 @@ struct NoReceiverView: View {
         ContentUnavailableView {
             Label("No Receiver Connected", systemImage: "antenna.radiowaves.left.and.right.slash")
         } description: {
-            Text("Plug in an RTL-SDR. If it is already plugged in, turn on its driver in Settings › Apps › RTL-SDR Radio.")
+            Text("Plug in an RTL-SDR. If it is already plugged in, turn on its driver in Settings › Apps › RTLBridge.")
         } actions: {
             Button("Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {

@@ -124,7 +124,7 @@ final class RTLTCPServer {
         self.port = port
 
         guard client.open() else {
-            fail("RTL-SDR user client unreachable — is the device plugged in? Is the driver enabled in Settings › Apps › RTL-SDR Radio?")
+            fail("RTL-SDR user client unreachable — is the device plugged in? Is the driver enabled in Settings › Apps › RTLBridge?")
             return
         }
         guard client.mapRing() else {

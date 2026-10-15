@@ -561,7 +561,7 @@
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR Radio";
+				INFOPLIST_KEY_CFBundleDisplayName = RTLBridge;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "The network server lets SDR apps on other devices in your network use the RTL-SDR connected to this iPad.";
@@ -608,7 +608,7 @@
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR Radio";
+				INFOPLIST_KEY_CFBundleDisplayName = RTLBridge;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "The network server lets SDR apps on other devices in your network use the RTL-SDR connected to this iPad.";

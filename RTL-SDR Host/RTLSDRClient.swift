@@ -236,9 +236,9 @@ nonisolated final class RTLSDRClient {
         guard open() else {
             log("✗ Could not connect to the RTL_SDR user client.")
             log("  → Is the RTL-SDR plugged in?")
-            log("  → Is the driver enabled in Settings › Apps › RTL-SDR Radio?")
+            log("  → Is the driver enabled in Settings › Apps › RTLBridge?")
             step(TestStep(title: "Driver connection", result: .failed,
-                          detail: "Is the RTL-SDR plugged in and its driver turned on in Settings › Apps › RTL-SDR Radio?"))
+                          detail: "Is the RTL-SDR plugged in and its driver turned on in Settings › Apps › RTLBridge?"))
             return
         }
         log("✓ User client connection open.")

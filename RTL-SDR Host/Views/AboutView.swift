@@ -21,7 +21,7 @@ struct AboutView: View {
                         .font(.system(size: 44))
                         .foregroundStyle(.tint)
                         .accessibilityHidden(true)
-                    Text("RTL-SDR Radio")
+                    Text("RTLBridge")
                         .font(.title2.bold())
                     Text("Version \(RTLSDRClient.appVersion)")
                         .foregroundStyle(.secondary)
@@ -59,7 +59,7 @@ private struct Component: Identifiable {
 struct LicensesView: View {
 
     private let components = [
-        Component(name: "RTL-SDR Radio", license: "Apache License 2.0",
+        Component(name: "RTLBridge", license: "Apache License 2.0",
                   files: ["NOTICE", "LICENSE"]),
         Component(name: "RTL2832Device from gnuradio4-blocks", license: "MIT License",
                   files: ["gnuradio4-blocks/LICENSE"]),
@@ -84,7 +84,7 @@ struct LicensesView: View {
                     }
                 }
             } footer: {
-                Text("The copyright notices of all components are listed under RTL-SDR Radio.")
+                Text("The copyright notices of all components are listed under RTLBridge.")
             }
         }
         .navigationTitle("Licenses")
