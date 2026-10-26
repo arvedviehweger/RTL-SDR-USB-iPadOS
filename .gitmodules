@@ -1,3 +1,4 @@
 [submodule "third_party/gnuradio4-blocks"]
 	path = third_party/gnuradio4-blocks
-	url = https://github.com/gnuradio/gnuradio4-blocks.git
+	url = https://github.com/arvedviehweger/gnuradio4-blocks.git
+	branch = rtl2832-driver
