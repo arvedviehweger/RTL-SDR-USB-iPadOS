@@ -262,7 +262,9 @@ and the shim gets one more piece.
 The dext exposes the device to the host app through an
 `IOUserClient` with a small scalar-method API (`kRTLSDRMethod*` in
 `RTLSDRShared.h`) plus a 2 MiB shared-memory IQ ring buffer mapped via
-`IOConnectMapMemory64`.
+`IOConnectMapMemory64`. Other apps can use the same interface; see
+[`RTL-SDR/include/README.md`](RTL-SDR/include/README.md) for an integration
+guide.
 
 ## rtl_tcp protocol coverage
 
@@ -309,10 +311,6 @@ Copyright 2026 Arved Viehweger.
 Licensed under the **Apache License, Version 2.0** (`LICENSE`). Whoever
 passes the code on, modified or not, has to include the license and the
 attribution notices in `NOTICE`.
-
-Exception: `RTLSDRShared.h`, the API between the driver extension and apps,
-is under the **MIT License** (text in the file), so that apps talking to the
-driver can include it freely.
 
 Third-party code in the driver extension:
 
