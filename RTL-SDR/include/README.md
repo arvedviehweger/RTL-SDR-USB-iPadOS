@@ -35,7 +35,7 @@ source; see [License](#license) for what that requires.
 - **RTLBridge must be installed** on the iPad, and the user must have enabled
   its driver under *Settings → Apps → RTLBridge*. The dext ships inside
   RTLBridge; your app does not bundle a driver.
-- A supported receiver: USB ID `0x0BDA:0x2838` (RTL2832U), e.g. the
+- A supported receiver: USB ID `0x0BDA:0x2838` or `0x0BDA:0x2832` (RTL2832U), e.g. the
   RTL-SDR Blog V3/V4 and most generic R820T/R828D/E4000 dongles.
 - Your app needs the entitlement
   `com.apple.developer.driverkit.communicates-with-drivers` set to `true`.
