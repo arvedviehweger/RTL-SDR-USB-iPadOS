@@ -7,6 +7,10 @@ as an **rtl_tcp-compatible TCP server**. It allows iPadOS (iOS) to access the
 RTL-SDR via USB without a jailbreak.
 This project is not affiliated with Realtek or RTL-SDR Blog.
 
+> **Building your own app?** It can use the RTL-SDR through RTLBridge, either
+> over rtl_tcp or directly from the driver. See the
+> [integration guide](RTL-SDR/include/README.md).
+
 The driver itself is a regular DriverKit extension that matches RTL2832U-based
 USB SDR receivers and programs them with the `RTL2832Device` driver from
 [gnuradio4-blocks](https://github.com/gnuradio/gnuradio4-blocks) (MIT). The
