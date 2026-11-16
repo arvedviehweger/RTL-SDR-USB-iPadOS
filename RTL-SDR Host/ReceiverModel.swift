@@ -3,9 +3,9 @@
 //  RTL-SDR Host
 //
 //  The app's state around the one RTL-SDR: whether it is plugged in, and
-//  which feature is using it. The radio, the rtl_tcp server and the
-//  connection test share the same user client, so only one of them runs at
-//  a time.
+//  which feature is using it. The radio (FM or DAB), the rtl_tcp server and
+//  the connection test share the same user client, so only one of them runs
+//  at a time.
 //
 
 import AVFoundation
@@ -24,6 +24,25 @@ final class ReceiverModel {
     enum Activity { case idle, radio, server, test }
     enum ServerState { case stopped, starting, running }
     enum RadioState { case stopped, starting, playing }
+    enum Band: String { case fm, dab }
+
+#if DAB
+    /// A DAB service found by the scan.
+    struct DABStation: Codable, Hashable, Identifiable {
+        var id: UInt32                  // service id
+        var label: String
+        var channel: String             // "5C"
+        var ensemble: String?
+        var isDABPlus: Bool
+
+        var channelIndex: Int? { DAB.channels.firstIndex { $0.name == channel } }
+    }
+
+    struct ScanProgress: Equatable {
+        var channel: Int
+        var total: Int
+    }
+#endif
 
     /// FM de-emphasis time constant, which differs by region.
     enum Deemphasis: String, CaseIterable, Identifiable {
@@ -62,6 +81,16 @@ final class ReceiverModel {
     private(set) var activity: Activity = .idle
 
     // Radio
+    /// FM or DAB; switching stops the radio.
+    var band: Band {
+        didSet {
+            guard band != oldValue else { return }
+            UserDefaults.standard.set(band.rawValue, forKey: Keys.band)
+            if activity == .radio { pauseRadio() }
+            radioError = nil
+            updateNowPlaying()
+        }
+    }
     private(set) var radioState: RadioState = .stopped
     private(set) var radioError: String?
     private(set) var frequency: UInt32
@@ -92,18 +121,45 @@ final class ReceiverModel {
         didSet {
             UserDefaults.standard.set(automaticGain, forKey: Keys.automaticGain)
             fm.setGain(tunerGain)
+#if DAB
+            dab.setGain(tunerGain)
+#endif
         }
     }
     var manualGain: Double {
         didSet {
             UserDefaults.standard.set(manualGain, forKey: Keys.manualGain)
             fm.setGain(tunerGain)
+#if DAB
+            dab.setGain(tunerGain)
+#endif
         }
     }
 
     /// In tenths of a dB as the driver takes it, nil for automatic.
     private var tunerGain: Int? {
         automaticGain ? nil : Int((manualGain * 10).rounded())
+    }
+
+#if DAB
+    // DAB
+    private(set) var dabStations: [DABStation]
+    private(set) var dabStation: DABStation?
+    private(set) var dabFavorites: [UInt32]
+    private(set) var dabScan: ScanProgress?
+    /// Dynamic label and slideshow of the service playing.
+    private(set) var dabLabel: String?
+    private(set) var dabSlide: UIImage?
+    private(set) var dabReception: DABReceiver.Reception?
+#endif
+
+    /// A DAB scan has the receiver without playing.
+    var isScanning: Bool {
+#if DAB
+        dabScan != nil
+#else
+        false
+#endif
     }
 
     // rtl_tcp server
@@ -120,6 +176,15 @@ final class ReceiverModel {
     @ObservationIgnored private let client = RTLSDRClient()
     @ObservationIgnored private lazy var server = RTLTCPServer(client: client)
     @ObservationIgnored private lazy var fm = FMReceiver(client: client)
+#if DAB
+    @ObservationIgnored private lazy var dab = DABReceiver(client: client)
+    @ObservationIgnored private var scanFound: [DABStation] = []
+#endif
+    /// The receiver the radio runs on, from start to its stop event.
+    @ObservationIgnored private var playingBand: Band?
+#if DAB
+    @ObservationIgnored private var scanAfterStop = false
+#endif
     @ObservationIgnored private let keeper = BackgroundAudioKeeper()
     @ObservationIgnored private let nowPlaying = NowPlaying()
     @ObservationIgnored private var showsNowPlaying = false
@@ -142,6 +207,12 @@ final class ReceiverModel {
         static let automaticGain = "radio.gain.automatic"
         static let manualGain = "radio.gain"
         static let names = "radio.names"
+        static let band = "radio.band"
+#if DAB
+        static let dabStations = "dab.stations"
+        static let dabStation = "dab.station"
+        static let dabFavorites = "dab.favorites"
+#endif
     }
 
     init() {
@@ -160,10 +231,24 @@ final class ReceiverModel {
             .reduce(into: [:]) { names, entry in
                 if let hz = UInt32(entry.key) { names[hz] = entry.value }
             }
+#if DAB
+        band = defaults.string(forKey: Keys.band).flatMap(Band.init) ?? .fm
+        let stations = defaults.data(forKey: Keys.dabStations)
+            .flatMap { try? JSONDecoder().decode([DABStation].self, from: $0) } ?? []
+        dabStations = stations
+        let current = UInt32(clamping: defaults.integer(forKey: Keys.dabStation))
+        dabStation = stations.first { $0.id == current } ?? stations.first
+        dabFavorites = (defaults.array(forKey: Keys.dabFavorites) as? [Int] ?? []).map { UInt32(clamping: $0) }
+#else
+        band = .fm
+#endif
 
         server.log = { [weak self] line in self?.appendServerLog(line) }
         server.event = { [weak self] event in self?.handle(event) }
         fm.event = { [weak self] event in self?.handle(event) }
+#if DAB
+        dab.event = { [weak self] event in self?.handle(event) }
+#endif
         setUpNowPlaying()
         observeAudioSession()
 
@@ -224,8 +309,24 @@ final class ReceiverModel {
             radioError = String(localized: "Audio is not available: \(error.localizedDescription)")
             return
         }
+#if DAB
+        if band == .dab {
+            guard let station = dabStation, let channel = station.channelIndex else {
+                radioError = String(localized: "Search for DAB stations first.")
+                return
+            }
+            activity = .radio
+            radioState = .starting
+            playingBand = .dab
+            dab.start(channel: channel, service: station.id, gain: tunerGain)
+            showsNowPlaying = true
+            updateNowPlaying()
+            return
+        }
+#endif
         activity = .radio
         radioState = .starting
+        playingBand = .fm
         fm.start(frequency: frequency, gain: tunerGain, deemphasis: deemphasis.tau, stereo: stereoEnabled)
         showsNowPlaying = true
         updateNowPlaying()
@@ -233,7 +334,15 @@ final class ReceiverModel {
 
     func pauseRadio() {
         guard activity == .radio else { return }
-        fm.stop()
+        switch playingBand {
+        case .fm: fm.stop()
+#if DAB
+        case .dab: dab.stop()
+        case nil: break
+#else
+        case .dab, nil: break
+#endif
+        }
     }
 
     func toggleRadio() {
@@ -279,6 +388,12 @@ final class ReceiverModel {
     /// The next (or previous) favorite after the current frequency, wrapping
     /// around; used by the Lock Screen's track buttons.
     func switchFavorite(forward: Bool) {
+#if DAB
+        if band == .dab {
+            switchDABStation(forward: forward)
+            return
+        }
+#endif
         guard !favorites.isEmpty else { return }
         let current = frequency
         let next = forward ? favorites.first(where: { $0 > current }) ?? favorites.first
@@ -309,6 +424,7 @@ final class ReceiverModel {
             signalQuality = 0
             isStereo = false
             reception = nil
+            playingBand = nil
             if activity == .radio { activity = .idle }
             updateNowPlaying()
             refreshDevice()
@@ -331,6 +447,156 @@ final class ReceiverModel {
         }
     }
 
+#if DAB
+    // MARK: - DAB
+
+    var isDABFavorite: Bool { dabStation.map { dabFavorites.contains($0.id) } ?? false }
+
+    /// Plays `station`, retuning only when it is on another channel.
+    func selectDAB(_ station: DABStation) {
+        dabStation = station
+        dabLabel = nil
+        dabSlide = nil
+        UserDefaults.standard.set(Int(station.id), forKey: Keys.dabStation)
+        if activity == .radio, radioState != .stopped, dabScan == nil, let channel = station.channelIndex {
+            dab.select(channel: channel, service: station.id)
+        } else if activity == .idle {
+            playRadio()
+        }
+        updateNowPlaying()
+    }
+
+    func toggleDABFavorite() {
+        guard let station = dabStation else { return }
+        if isDABFavorite {
+            dabFavorites.removeAll { $0 == station.id }
+        } else {
+            dabFavorites.append(station.id)
+        }
+        UserDefaults.standard.set(dabFavorites.map(Int.init), forKey: Keys.dabFavorites)
+        updateNowPlaying()
+    }
+
+    /// Searches Band III; stops the radio first.
+    func scanDAB() {
+        guard dabScan == nil else { return }
+        if activity == .radio {
+            scanAfterStop = true
+            pauseRadio()
+            return
+        }
+        guard activity == .idle else { return }
+        radioError = nil
+        scanFound = []
+        activity = .radio
+        playingBand = .dab
+        dabScan = ScanProgress(channel: 0, total: DAB.channels.count)
+        dab.scan(gain: tunerGain)
+    }
+
+    func cancelScan() {
+        guard dabScan != nil else { return }
+        dab.stop()
+    }
+
+    /// Favorites first if there are any, else all stations, wrapping around.
+    private func switchDABStation(forward: Bool) {
+        let favorites = dabStations.filter { dabFavorites.contains($0.id) }
+        let list = favorites.isEmpty ? dabStations : favorites
+        guard !list.isEmpty else { return }
+        let index = dabStation.flatMap { s in list.firstIndex { $0.id == s.id } }
+        let next: Int
+        if let index {
+            next = (index + (forward ? 1 : list.count - 1)) % list.count
+        } else {
+            next = 0
+        }
+        selectDAB(list[next])
+    }
+
+    private func handle(_ event: DABReceiver.Event) {
+        switch event {
+        case .started:
+            if dabScan == nil { radioState = .playing }
+            updateNowPlaying()
+        case .stopped, .failed:
+            if case .failed(let message) = event { radioError = message }
+            radioState = .stopped
+            dabReception = nil
+            dabLabel = nil
+            dabSlide = nil
+            signalQuality = 0
+            playingBand = nil
+            if activity == .radio { activity = .idle }
+            updateNowPlaying()
+            refreshDevice()
+            if scanAfterStop {
+                scanAfterStop = false
+                scanDAB()
+            }
+        case .ensemble(let channel, let ensemble):
+            let stations = ensemble.audioServices.map { s in
+                DABStation(id: s.id, label: s.label ?? String(format: "%04X", s.id), channel: channel,
+                           ensemble: ensemble.label, isDABPlus: s.audio?.isDABPlus ?? true)
+            }
+            if dabScan != nil {
+                scanFound.removeAll { $0.channel == channel }
+                scanFound += stations
+            } else if ensemble.isComplete {
+                mergeDAB(stations, channel: channel)
+            }
+        case .reception(let reception):
+            guard radioState == .playing, band == .dab else { return }
+            dabReception = reception
+            signalQuality = reception.quality
+        case .label(let label):
+            dabLabel = label.map { Format.radioText($0) }
+            updateNowPlaying()
+        case .slide(let slide):
+            dabSlide = slide.flatMap { UIImage(data: $0.data) }
+            updateNowPlaying()
+        case .scanProgress(let channel, let total):
+            dabScan = ScanProgress(channel: channel, total: total)
+        case .scanFinished:
+            dabScan = nil
+            let sorted = scanFound.sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+            dabStations = sorted
+            if let current = dabStation, !sorted.contains(where: { $0.id == current.id }) {
+                dabStation = sorted.first
+            } else if dabStation == nil {
+                dabStation = sorted.first
+            }
+            saveDABStations()
+        }
+    }
+
+    /// Services seen while listening: new ones join the list, labels update.
+    private func mergeDAB(_ stations: [DABStation], channel: String) {
+        var list = dabStations
+        for station in stations {
+            if let i = list.firstIndex(where: { $0.id == station.id && $0.channel == channel }) {
+                list[i] = station
+            } else {
+                list.append(station)
+            }
+        }
+        list.sort { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+        guard list != dabStations else { return }
+        dabStations = list
+        if let current = dabStation, let updated = list.first(where: { $0.id == current.id }) {
+            dabStation = updated
+        }
+        saveDABStations()
+    }
+
+    private func saveDABStations() {
+        if let data = try? JSONEncoder().encode(dabStations) {
+            UserDefaults.standard.set(data, forKey: Keys.dabStations)
+        }
+        UserDefaults.standard.set(Int(dabStation?.id ?? 0), forKey: Keys.dabStation)
+    }
+#endif
+
     private func saveStationNames() {
         let stored = Dictionary(uniqueKeysWithValues: stationNames.map { (String($0.key), $0.value) })
         UserDefaults.standard.set(stored, forKey: Keys.names)
@@ -347,6 +613,16 @@ final class ReceiverModel {
 
     private func updateNowPlaying() {
         guard showsNowPlaying else { return }
+#if DAB
+        if band == .dab {
+            nowPlaying.update(title: dabStation?.label ?? String(localized: "DAB+ Radio"),
+                              subtitle: dabLabel ?? dabStation?.ensemble ?? String(localized: "DAB+ Radio"),
+                              playing: radioState == .playing,
+                              hasFavorites: dabStations.count > 1,
+                              artwork: dabSlide)
+            return
+        }
+#endif
         let station = Format.station(frequency)
         nowPlaying.update(title: displayName ?? station,
                           subtitle: radioText ?? (displayName == nil ? String(localized: "FM Radio") : station),

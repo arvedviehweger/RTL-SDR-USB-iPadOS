@@ -148,6 +148,9 @@ RTL-SDR Host/                       ← host application target
    When you change the dext, bump the build number (`CURRENT_PROJECT_VERSION`)
    before reinstalling. iPadOS keeps running its staged copy of the dext
    while the version stays the same. Replug the RTL-SDR afterwards.
+   Debug and Release builds include the DAB+ radio. Archive uses the
+   "App Store" configuration, which leaves it out (`DAB` compilation
+   condition, `RTL-SDR Host/DAB/` excluded).
 6. Plug in the RTL-SDR. The dext matches the USB device and starts. You may run the connection test under Diagnostics in the RTLBridge app. The iPad
    console also shows lines like
 

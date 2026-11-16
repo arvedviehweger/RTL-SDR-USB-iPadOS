@@ -41,8 +41,9 @@ final class NowPlaying {
     }
 
     /// Title and subtitle, e.g. the station name and its radio text. Next /
-    /// previous are offered only with favorites to switch between.
-    func update(title: String, subtitle: String, playing: Bool, hasFavorites: Bool) {
+    /// previous are offered only with favorites to switch between. DAB
+    /// slideshow pictures replace the radio symbol.
+    func update(title: String, subtitle: String, playing: Bool, hasFavorites: Bool, artwork image: UIImage? = nil) {
         let center = MPRemoteCommandCenter.shared()
         center.nextTrackCommand.isEnabled = hasFavorites
         center.previousTrackCommand.isEnabled = hasFavorites
@@ -50,7 +51,7 @@ final class NowPlaying {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = [
             MPMediaItemPropertyTitle: title,
             MPMediaItemPropertyArtist: subtitle,
-            MPMediaItemPropertyArtwork: artwork,
+            MPMediaItemPropertyArtwork: image.map(NowPlaying.artworkItem) ?? artwork,
             MPNowPlayingInfoPropertyIsLiveStream: true,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
             MPNowPlayingInfoPropertyPlaybackRate: playing ? 1.0 : 0.0,
@@ -64,8 +65,11 @@ final class NowPlaying {
     /// MediaPlayer asks for the image on a background thread, so neither
     /// this closure nor the drawing may be tied to the main actor.
     nonisolated private static func makeArtworkItem() -> MPMediaItemArtwork {
-        let image = makeArtwork()
-        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        artworkItem(makeArtwork())
+    }
+
+    nonisolated private static func artworkItem(_ image: UIImage) -> MPMediaItemArtwork {
+        MPMediaItemArtwork(boundsSize: image.size) { _ in image }
     }
 
     /// A radio symbol on the accent colour.

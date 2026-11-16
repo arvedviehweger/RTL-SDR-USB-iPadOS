@@ -58,14 +58,21 @@ private struct Component: Identifiable {
 
 struct LicensesView: View {
 
-    private let components = [
-        Component(name: "RTLBridge", license: "Apache License 2.0",
-                  files: ["NOTICE", "LICENSE"]),
-        Component(name: "RTL2832Device from gnuradio4-blocks", license: "MIT License",
-                  files: ["gnuradio4-blocks/LICENSE"]),
-        Component(name: "webrtlsdr", license: "Apache License 2.0",
-                  files: ["LICENSE.webrtlsdr"]),
-    ]
+    private let components: [Component] = {
+        var components = [
+            Component(name: "RTLBridge", license: "Apache License 2.0",
+                      files: ["NOTICE", "LICENSE"]),
+            Component(name: "RTL2832Device from gnuradio4-blocks", license: "MIT License",
+                      files: ["gnuradio4-blocks/LICENSE"]),
+            Component(name: "webrtlsdr", license: "Apache License 2.0",
+                      files: ["LICENSE.webrtlsdr"]),
+        ]
+#if DAB
+        components.append(Component(name: "kjmp2", license: "zlib License",
+                                    files: ["LICENSE.kjmp2"]))
+#endif
+        return components
+    }()
 
     var body: some View {
         List {

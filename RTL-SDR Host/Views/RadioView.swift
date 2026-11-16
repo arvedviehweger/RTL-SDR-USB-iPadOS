@@ -2,7 +2,8 @@
 //  RadioView.swift
 //  RTL-SDR Host
 //
-//  The FM radio: frequency, tuning scale, play / pause and favorites.
+//  The radio: FM (frequency, tuning scale, play / pause and favorites) or
+//  DAB+ (see DABView), switched at the top.
 //
 
 import AVKit
@@ -30,7 +31,7 @@ struct RadioView: View {
                 } description: {
                     Text("The radio is available again when the test has finished.")
                 }
-            } else if !model.isDevicePresent && model.radioState == .stopped {
+            } else if !model.isDevicePresent && model.radioState == .stopped && !model.isScanning {
                 NoReceiverView()
             } else {
                 player
@@ -39,23 +40,64 @@ struct RadioView: View {
         .navigationTitle("Radio")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button(showsSpectrum ? "Hide Spectrum" : "Show Spectrum",
-                       systemImage: showsSpectrum ? "waveform.circle.fill" : "waveform.circle") {
-                    withAnimation(.snappy) { showsSpectrum.toggle() }
+                if model.band == .fm {
+                    Button(showsSpectrum ? "Hide Spectrum" : "Show Spectrum",
+                           systemImage: showsSpectrum ? "waveform.circle.fill" : "waveform.circle") {
+                        withAnimation(.snappy) { showsSpectrum.toggle() }
+                    }
+                    Button(model.isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                           systemImage: model.isFavorite ? "star.fill" : "star") {
+                        model.toggleFavorite()
+                    }
                 }
-                Button(model.isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                       systemImage: model.isFavorite ? "star.fill" : "star") {
-                    model.toggleFavorite()
+#if DAB
+                if model.band == .dab {
+                    Button(model.isDABFavorite ? "Remove from Favorites" : "Add to Favorites",
+                           systemImage: model.isDABFavorite ? "star.fill" : "star") {
+                        model.toggleDABFavorite()
+                    }
+                    .disabled(model.dabStation == nil)
                 }
+#endif
                 RoutePicker()
                     .frame(width: 32, height: 32)
-                OptionsMenu()
+                if model.band == .fm {
+                    OptionsMenu()
+                }
             }
         }
     }
 
     private var player: some View {
         ScrollView {
+            VStack(spacing: 24) {
+#if DAB
+                Picker("Band", selection: Bindable(model).band) {
+                    Text("FM").tag(ReceiverModel.Band.fm)
+                    Text("DAB+").tag(ReceiverModel.Band.dab)
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 240)
+                .disabled(model.isScanning)
+
+                if model.band == .fm {
+                    fmPlayer
+                } else {
+                    DABPlayer()
+                }
+#else
+                fmPlayer
+#endif
+            }
+            .frame(maxWidth: 640)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 32)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var fmPlayer: some View {
+        Group {
             // With the spectrum shown everything moves closer together, so
             // the controls still fit an iPad in landscape.
             VStack(spacing: showsSpectrum ? 24 : 36) {
@@ -76,10 +118,6 @@ struct RadioView: View {
                 }
                 FavoritesSection()
             }
-            .frame(maxWidth: 640)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 32)
-            .frame(maxWidth: .infinity)
         }
     }
 
@@ -115,7 +153,7 @@ struct RadioView: View {
     }
 }
 
-private struct StepButtonStyle: ViewModifier {
+struct StepButtonStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .labelStyle(.iconOnly)

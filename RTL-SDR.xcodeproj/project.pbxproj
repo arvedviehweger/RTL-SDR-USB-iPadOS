@@ -12,6 +12,7 @@
 		D1CE00000000000000000012 /* NOTICE in Copy Licenses */ = {isa = PBXBuildFile; fileRef = D1CE00000000000000000002 /* NOTICE */; };
 		D1CE00000000000000000013 /* LICENSE.webrtlsdr in Copy Licenses */ = {isa = PBXBuildFile; fileRef = D1CE00000000000000000003 /* LICENSE.webrtlsdr */; };
 		D1CE00000000000000000014 /* LICENSE in Copy gnuradio4-blocks License */ = {isa = PBXBuildFile; fileRef = D1CE00000000000000000004 /* LICENSE */; };
+		D1CE00000000000000000015 /* LICENSE.kjmp2 in Copy Licenses */ = {isa = PBXBuildFile; fileRef = D1CE00000000000000000005 /* LICENSE.kjmp2 */; };
 		F8E4131D2FBC3EE400BA74C0 /* DriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E4131C2FBC3EE400BA74C0 /* DriverKit.framework */; };
 		F8E413452FBDDAD200BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F8E413A42FC0F54D00BA74C0 /* USBDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8E413A32FC0F54D00BA74C0 /* USBDriverKit.framework */; };
@@ -39,6 +40,7 @@
 				D1CE00000000000000000011 /* LICENSE in Copy Licenses */,
 				D1CE00000000000000000012 /* NOTICE in Copy Licenses */,
 				D1CE00000000000000000013 /* LICENSE.webrtlsdr in Copy Licenses */,
+				D1CE00000000000000000015 /* LICENSE.kjmp2 in Copy Licenses */,
 			);
 			name = "Copy Licenses";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -76,6 +78,7 @@
 		D1CE00000000000000000002 /* NOTICE */ = {isa = PBXFileReference; lastKnownFileType = text; path = NOTICE; sourceTree = SOURCE_ROOT; };
 		D1CE00000000000000000003 /* LICENSE.webrtlsdr */ = {isa = PBXFileReference; lastKnownFileType = text; name = LICENSE.webrtlsdr; path = third_party/LICENSE.webrtlsdr; sourceTree = SOURCE_ROOT; };
 		D1CE00000000000000000004 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; name = LICENSE; path = "third_party/gnuradio4-blocks/LICENSE"; sourceTree = SOURCE_ROOT; };
+		D1CE00000000000000000005 /* LICENSE.kjmp2 */ = {isa = PBXFileReference; lastKnownFileType = text; name = LICENSE.kjmp2; path = third_party/LICENSE.kjmp2; sourceTree = SOURCE_ROOT; };
 		F8E413192FBC3EE400BA74C0 /* com.m0kds.RTL-SDR-Host.driver.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = "com.m0kds.RTL-SDR-Host.driver.dext"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8E4131C2FBC3EE400BA74C0 /* DriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DriverKit.framework; path = Library/Frameworks/DriverKit.framework; sourceTree = DEVELOPER_DIR; };
 		F8E4132F2FBDDA5E00BA74C0 /* RTL-SDR Host.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RTL-SDR Host.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -168,6 +171,7 @@
 				D1CE00000000000000000001 /* LICENSE */,
 				D1CE00000000000000000002 /* NOTICE */,
 				D1CE00000000000000000003 /* LICENSE.webrtlsdr */,
+				D1CE00000000000000000005 /* LICENSE.kjmp2 */,
 				D1CE00000000000000000004 /* LICENSE */,
 			);
 			name = Licenses;
@@ -350,13 +354,162 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		D1CEA5000000000000000001 /* App Store */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = K89F9CL4ZU;
+				DRIVERKIT_DEPLOYMENT_TARGET = 25.0;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = driverkit;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = "App Store";
+		};
+		D1CEA5000000000000000002 /* App Store */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
+				CODE_SIGN_ENTITLEMENTS = "RTL-SDR/RTL-SDR.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20;
+				DEVELOPMENT_TEAM = K89F9CL4ZU;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SDKROOT)/System/DriverKit/System/Library/Frameworks",
+				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"RTLSDR_DEXT_VERSION=$(MARKETING_VERSION)",
+					"RTLSDR_DEXT_BUILD=$(CURRENT_PROJECT_VERSION)",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Shim/include",
+					"$(SRCROOT)/Shim",
+				);
+				INFOPLIST_FILE = "RTL-SDR/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "RTL-SDR USB Driver";
+				INFOPLIST_KEY_OSBundleUsageDescription = "Used for communicating with RTL-SDR";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.m0kds.RTL-SDR-Host.driver";
+				PRODUCT_NAME = "$(inherited)";
+				RUN_CLANG_STATIC_ANALYZER = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SYSTEM_HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/third_party/gnuradio4-blocks/blocks/sdr/include",
+				);
+			};
+			name = "App Store";
+		};
+		D1CEA5000000000000000003 /* App Store */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = Icon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "RTL-SDR Host/RTL-SDR Host.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20;
+				DEVELOPMENT_TEAM = K89F9CL4ZU;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"*/DAB/*",
+					DABView.swift,
+					LICENSE.kjmp2,
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = RTLBridge;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "The network server lets SDR apps on other devices in your network use the RTL-SDR connected to this iPad.";
+				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "RTL-SDR USB Driver";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = "arm64 driverkit";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.m0kds.RTL-SDR-Host";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				"SWIFT_OBJC_BRIDGING_HEADER[arch=*]" = "RTL-SDR Host/RTL-SDR-Host-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = "App Store";
+		};
 		F8E413262FBC3EE400BA74C0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CODE_SIGN_ENTITLEMENTS = "RTL-SDR/RTL-SDR.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -396,7 +549,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++23";
 				CODE_SIGN_ENTITLEMENTS = "RTL-SDR/RTL-SDR.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -557,7 +710,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "RTL-SDR Host/RTL-SDR Host.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
@@ -585,7 +738,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG DAB $(inherited)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -604,7 +757,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "RTL-SDR Host/RTL-SDR Host.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = K89F9CL4ZU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "RTL-SDR Host/Info.plist";
@@ -632,6 +785,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DAB $(inherited)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -652,6 +806,7 @@
 			buildConfigurations = (
 				F8E413282FBC3EE400BA74C0 /* Debug */,
 				F8E413292FBC3EE400BA74C0 /* Release */,
+				D1CEA5000000000000000001 /* App Store */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -661,6 +816,7 @@
 			buildConfigurations = (
 				F8E413262FBC3EE400BA74C0 /* Debug */,
 				F8E413272FBC3EE400BA74C0 /* Release */,
+				D1CEA5000000000000000002 /* App Store */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -670,6 +826,7 @@
 			buildConfigurations = (
 				F8E413422FBDDA5F00BA74C0 /* Debug */,
 				F8E413432FBDDA5F00BA74C0 /* Release */,
+				D1CEA5000000000000000003 /* App Store */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

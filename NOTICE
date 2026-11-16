@@ -15,3 +15,7 @@ Code ported from webrtlsdr (RTL-SDR/WebRTLSDRPort.cpp, modified)
   Copyright 2024 Jacobo Tarrio Barreiro
   Copyright 2013 Google Inc.
   Licensed under the Apache License, Version 2.0 (third_party/LICENSE.webrtlsdr).
+
+kjmp2, MPEG Audio Layer II decoder (kjmp2.c, unmodified; source builds only)
+  Copyright (C) 2006-2013 Martin J. Fiedler
+  Licensed under the zlib License (third_party/LICENSE.kjmp2).
