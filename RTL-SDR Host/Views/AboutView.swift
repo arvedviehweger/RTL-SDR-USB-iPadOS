@@ -36,6 +36,11 @@ struct AboutView: View {
                     Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
                 }
                 NavigationLink {
+                    DeveloperView()
+                } label: {
+                    Label("Use RTLBridge in Your App", systemImage: "hammer")
+                }
+                NavigationLink {
                     LicensesView()
                 } label: {
                     Label("Licenses", systemImage: "doc.text")
@@ -45,6 +50,64 @@ struct AboutView: View {
             }
         }
         .navigationTitle("About")
+    }
+}
+
+/// How other apps can use the receiver: through the rtl_tcp server or directly
+/// through the dext's user client (RTL-SDR/include/README.md in the repository).
+struct DeveloperView: View {
+
+    private let guideURL = URL(string: "https://github.com/arvedviehweger/RTL-SDR-USB-iPadOS/blob/main/RTL-SDR/include/README.md")!
+    private let headerURL = URL(string: "https://github.com/arvedviehweger/RTL-SDR-USB-iPadOS/blob/main/RTL-SDR/include/RTLSDRShared.h")!
+
+    var body: some View {
+        Form {
+            Section {
+                Text("Your own app can use the RTL-SDR through RTLBridge. RTLBridge stays installed and provides the driver; your app does not need to bundle one. The driver has to be enabled under Settings → Apps → RTLBridge.")
+            }
+
+            Section {
+                Text("Start the rtl_tcp server on the Network tab and connect your app to the address shown there, for example 127.0.0.1 on this iPad. Any rtl_tcp client works, and no special entitlement is needed.")
+            } header: {
+                Text("Over rtl_tcp")
+            }
+
+            Section {
+                Text("Open the driver's DriverKit user client (IOUserClient) from your app with IOServiceOpen and IOConnectCall… to tune, set gain and sample rate, and read the raw IQ samples from a shared ring buffer, without the network in between.")
+                CodeRow(label: "Service name", value: "RTL_SDR")
+                CodeRow(label: "Header", value: "RTLSDRShared.h")
+                CodeRow(label: "Entitlement", value: "com.apple.developer.driverkit.communicates-with-drivers")
+                Link(destination: guideURL) {
+                    Label("Integration Guide", systemImage: "book")
+                }
+                Link(destination: headerURL) {
+                    Label("RTLSDRShared.h on GitHub", systemImage: "doc.plaintext")
+                }
+            } header: {
+                Text("Directly from the Driver")
+            } footer: {
+                Text("The entitlement has to be requested from Apple. The header is licensed under the Apache License 2.0 and may be used in open and closed source apps. Only one app should stream at a time, so stop the RTLBridge server and radio while your app reads samples.")
+            }
+        }
+        .navigationTitle("For Developers")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// A label with a selectable, monospaced value below it.
+private struct CodeRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.callout.monospaced())
+                .textSelection(.enabled)
+        }
     }
 }
 

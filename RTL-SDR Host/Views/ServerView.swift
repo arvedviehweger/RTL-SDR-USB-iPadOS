@@ -50,7 +50,7 @@ struct ServerView: View {
                     } else if model.activity == .radio {
                         Text("The radio is using the receiver. Pause it to start the server.")
                     }
-                    Text("Shares the receiver with SDR apps such as SDR++, GQRX or SDRangel, on this iPad or on other devices in your network. The server keeps running when you switch to another app.")
+                    Text("Shares the receiver with SDR apps that support rtl_tcp, on this iPad or on other devices in your network. To use an SDR app on this iPad, open it next to RTLBridge in Split View.")
                 }
             }
 
